@@ -1,4 +1,4 @@
-{ pkgs }:
+{ gitHash, pkgs }:
 
 let
 
@@ -177,10 +177,15 @@ pkgs.stdenv.mkDerivation {
     sed -i 's/\[4096\]/[512]/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
     sed -i 's/snprintf(page, PAGE_SIZE - 1/snprintf(page, 511/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
 
-    # B. KernelSU Injection (Same as before)
+    # B. KernelSU Injection 
     echo "[ ~ ] Wiring KernelSU into the driver tree..."
     cp -r --no-preserve=mode ${srcKSU}/kernel workspace/kernel_platform/msm-kernel/drivers/kernelsu
     echo 'obj-y += kernelsu/' >> workspace/kernel_platform/msm-kernel/drivers/Makefile
+
+    echo "[ ~ ] Hardcoding Version String..."
+    VERSION_STR="Popcorn-Kernel-1.0.0Mb-salami (${gitHash})"
+    # This sed command finds the banner string and injects your custom name and a fake (but better) date
+    sed -i "s/UTS_RELEASE/\"$VERSION_STR\"/g" workspace/kernel_platform/msm-kernel/init/version.c || true
 
     # C. Tuning: 16GB RAM Efficiency, HZ=100, and MGLRU
     echo "[ ~ ] Injecting Battery, 16GB RAM, and Scheduler flags..."
