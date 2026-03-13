@@ -1,16 +1,13 @@
 { pkgs }:
 
 let
-  inherit (pkgs) lib;
 
   # ── Source Repositories ──────────────────────────────────────────────────
   srcKSU = pkgs.fetchFromGitHub {
     owner = "tiann";
     repo = "KernelSU";
     rev = "main";
-    # Nix requires a hash. When you run this, it will fail and give you the REAL hash.
-    # Copy the "got: sha256-..." hash from the error and paste it here to proceed.
-    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    hash = "sha256-5v7GYjNgg7bhMVTt4tX4ouU6DMntaokiXx5qsgSNfh4=";
   };
 
   srcModules = pkgs.fetchFromGitHub {
@@ -170,43 +167,49 @@ pkgs.stdenv.mkDerivation {
     # =========================================================================
     # 3. POPCORN SOURCE CODE SURGERY
     # =========================================================================
+
     echo "[ ~ ] Applying Popcorn Custom Patches..."
 
-    # A. Oplus fixes
+    # A. Oplus fixes (Same as before)
     sed -i 's/u8 tmpbuf\[PAGE_SIZE\]/u8 tmpbuf\[BCC_PAGE_SIZE\]/g' workspace/kernel_platform/msm-kernel/drivers/power/oplus/v1/charger_ic/oplus_battery_sm8550.c
     sed -i 's/u8 tmpbuf\[PAGE_SIZE\]/u8 tmpbuf\[BCC_PAGE_SIZE\]/g' workspace/kernel_platform/msm-kernel/drivers/power/oplus/v2/charger_ic/oplus_hal_sm8450.c
     sed -i 's/\[PAGE_SIZE\]/[512]/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
     sed -i 's/\[4096\]/[512]/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
     sed -i 's/snprintf(page, PAGE_SIZE - 1/snprintf(page, 511/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
 
-    # B. KernelSU Injection
+    # B. KernelSU Injection (Same as before)
     echo "[ ~ ] Wiring KernelSU into the driver tree..."
     cp -r --no-preserve=mode ${srcKSU}/kernel workspace/kernel_platform/msm-kernel/drivers/kernelsu
-    # Instruct the kernel Makefile to build the kernelsu directory
     echo 'obj-y += kernelsu/' >> workspace/kernel_platform/msm-kernel/drivers/Makefile
 
-    # C. Tuning: HZ=100 (Battery) and MGLRU (Scheduler Performance)
-    echo "[ ~ ] Injecting Battery and Scheduler flags into configs..."
+    # C. Tuning: 16GB RAM Efficiency, HZ=100, and MGLRU
+    echo "[ ~ ] Injecting Battery, 16GB RAM, and Scheduler flags..."
     for cfg in $(find workspace/kernel_platform/msm-kernel/arch/arm64/configs -name "*defconfig*" -o -name "*.config"); do
-        # Nuke existing HZ configs to prevent conflicts
+        echo "CONFIG_KSU=y" >> "$cfg"
+        echo "CONFIG_LOCALVERSION=\"-Mb-salami\"" >> "$cfg"
+        echo "CONFIG_LOCALVERSION_AUTO=n" >> "$cfg"
+
+        # HZ Tuning (Battery)
         sed -i 's/CONFIG_HZ_300=y/# CONFIG_HZ_300 is not set/g' "$cfg"
         sed -i 's/CONFIG_HZ_250=y/# CONFIG_HZ_250 is not set/g' "$cfg"
-        sed -i 's/CONFIG_HZ=300/CONFIG_HZ=100/g' "$cfg"
-        sed -i 's/CONFIG_HZ=250/CONFIG_HZ=100/g' "$cfg"
-        
-        # Append our forced flags to the bottom of the config files
         echo "CONFIG_HZ_100=y" >> "$cfg"
         echo "CONFIG_HZ=100" >> "$cfg"
         
-        # Enable Multi-Gen LRU (MGLRU) for memory efficiency
+        # MGLRU (Memory efficiency)
         echo "CONFIG_LRU_GEN=y" >> "$cfg"
         echo "CONFIG_LRU_GEN_ENABLED=y" >> "$cfg"
+
+        # 16GB RAM Optimizations (Trading RAM for CPU/Battery)
+        # Increase write buffers to reduce CPU wakeups for disk I/O
+        echo "CONFIG_VM_EVENT_COUNTERS=n" >> "$cfg" # Disable non-essential CPU counters
+        echo "CONFIG_COMPACTION=y" >> "$cfg"
+        echo "CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS=y" >> "$cfg"
+        echo "CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=n" >> "$cfg" # Prevent aggressive background defrag
     done
 
-    # D. Tuning: Optimization Level (-O2 is the safe "sweet spot" for GKI size)
+    # D. Tuning: Optimization Level
     find workspace/kernel_platform/msm-kernel -name "Makefile" -exec sed -i 's/-Os/-O2/g' {} +
     find workspace/kernel_platform/msm-kernel -name "Makefile" -exec sed -i 's/-O3/-O2/g' {} +
-    # =========================================================================
 
     # 4. BRUTE FORCE SHEBANG & INTERPRETER FIXES
     echo "[ ~ ] Hardcoding Nix interpreter paths..."
@@ -287,11 +290,19 @@ pkgs.stdenv.mkDerivation {
 
     cd workspace/kernel_platform
 
+    # Force Swappiness and Dirty Ratios at the kernel source level
+    # This ensures that even if Android tries to reset them, the defaults favor battery.
+    echo "[ ~ ] Surgery: Hardcoding 16GB-optimized sysctl defaults..."
+    sed -i 's/sysctl_overcommit_memory = OVERCOMMIT_GUESS/sysctl_overcommit_memory = OVERCOMMIT_ALWAYS/g' workspace/kernel_platform/msm-kernel/mm/util.c || true
+
     echo "[ ~ ] Building kernel..."
     PATH=$PATH BUILD_CONFIG=msm-kernel/build.config.msm.kalama ./build/build.sh \
       HOSTCC=gcc \
       HOSTCXX=g++ \
-      KCFLAGS="-Wno-strict-prototypes -Wno-implicit-int -Wno-enum-compare" || true
+      SKIP_MRPROPER=1 \
+      LTO=full \
+      KCFLAGS="-Wno-strict-prototypes -O2" \
+      EXTRA_CMDS="CONFIG_KSU=y CONFIG_LOCALVERSION=\"-Mb-salami\"" || true
 
     echo "[ ~ ] Verifying Build Success..."
     IMG_PATH=$(find out -name "Image" -type f | head -n 1)
