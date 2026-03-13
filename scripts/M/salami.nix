@@ -4,6 +4,15 @@ let
   inherit (pkgs) lib;
 
   # ── Source Repositories ──────────────────────────────────────────────────
+  srcKSU = pkgs.fetchFromGitHub {
+    owner = "tiann";
+    repo = "KernelSU";
+    rev = "main";
+    # Nix requires a hash. When you run this, it will fail and give you the REAL hash.
+    # Copy the "got: sha256-..." hash from the error and paste it here to proceed.
+    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  };
+
   srcModules = pkgs.fetchFromGitHub {
     owner = "OnePlusOSS";
     repo = "android_kernel_modules_and_devicetree_oneplus_sm8550";
@@ -158,13 +167,46 @@ pkgs.stdenv.mkDerivation {
     # 2. FORCE WRITABLE
     chmod -R u+rwx workspace toolchains
 
-    # 3. OPLUS SOURCE PATCHES (Fixed paths)
-    echo "[ ~ ] Patching Oplus stack allocations..."
+    # =========================================================================
+    # 3. POPCORN SOURCE CODE SURGERY
+    # =========================================================================
+    echo "[ ~ ] Applying Popcorn Custom Patches..."
+
+    # A. Oplus fixes
     sed -i 's/u8 tmpbuf\[PAGE_SIZE\]/u8 tmpbuf\[BCC_PAGE_SIZE\]/g' workspace/kernel_platform/msm-kernel/drivers/power/oplus/v1/charger_ic/oplus_battery_sm8550.c
     sed -i 's/u8 tmpbuf\[PAGE_SIZE\]/u8 tmpbuf\[BCC_PAGE_SIZE\]/g' workspace/kernel_platform/msm-kernel/drivers/power/oplus/v2/charger_ic/oplus_hal_sm8450.c
     sed -i 's/\[PAGE_SIZE\]/[512]/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
     sed -i 's/\[4096\]/[512]/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
     sed -i 's/snprintf(page, PAGE_SIZE - 1/snprintf(page, 511/g' workspace/kernel_platform/msm-kernel/drivers/input/touchscreen/synaptics_hbp/touchpanel_proc.c
+
+    # B. KernelSU Injection
+    echo "[ ~ ] Wiring KernelSU into the driver tree..."
+    cp -r --no-preserve=mode ${srcKSU}/kernel workspace/kernel_platform/msm-kernel/drivers/kernelsu
+    # Instruct the kernel Makefile to build the kernelsu directory
+    echo 'obj-y += kernelsu/' >> workspace/kernel_platform/msm-kernel/drivers/Makefile
+
+    # C. Tuning: HZ=100 (Battery) and MGLRU (Scheduler Performance)
+    echo "[ ~ ] Injecting Battery and Scheduler flags into configs..."
+    for cfg in $(find workspace/kernel_platform/msm-kernel/arch/arm64/configs -name "*defconfig*" -o -name "*.config"); do
+        # Nuke existing HZ configs to prevent conflicts
+        sed -i 's/CONFIG_HZ_300=y/# CONFIG_HZ_300 is not set/g' "$cfg"
+        sed -i 's/CONFIG_HZ_250=y/# CONFIG_HZ_250 is not set/g' "$cfg"
+        sed -i 's/CONFIG_HZ=300/CONFIG_HZ=100/g' "$cfg"
+        sed -i 's/CONFIG_HZ=250/CONFIG_HZ=100/g' "$cfg"
+        
+        # Append our forced flags to the bottom of the config files
+        echo "CONFIG_HZ_100=y" >> "$cfg"
+        echo "CONFIG_HZ=100" >> "$cfg"
+        
+        # Enable Multi-Gen LRU (MGLRU) for memory efficiency
+        echo "CONFIG_LRU_GEN=y" >> "$cfg"
+        echo "CONFIG_LRU_GEN_ENABLED=y" >> "$cfg"
+    done
+
+    # D. Tuning: Optimization Level (-O2 is the safe "sweet spot" for GKI size)
+    find workspace/kernel_platform/msm-kernel -name "Makefile" -exec sed -i 's/-Os/-O2/g' {} +
+    find workspace/kernel_platform/msm-kernel -name "Makefile" -exec sed -i 's/-O3/-O2/g' {} +
+    # =========================================================================
 
     # 4. BRUTE FORCE SHEBANG & INTERPRETER FIXES
     echo "[ ~ ] Hardcoding Nix interpreter paths..."
@@ -179,19 +221,17 @@ pkgs.stdenv.mkDerivation {
     find workspace/kernel_platform -type f -exec sed -i "s|env python|$NIX_PYTHON|g" {} + || true
 
     # 5. MASSIVE SHEBANG PATCH
-    # This specifically addresses the 'bpf_doc.py: not found' issue
     patchShebangs workspace/kernel_platform/common/scripts
     patchShebangs workspace/kernel_platform/build
     patchShebangs workspace/kernel_platform/prebuilts
     patchShebangs workspace/kernel_platform/tools
 
-    # 6. TOOLCHAIN SYMLINKING (Ported from your patch-kernel-toolchain script)
+    # 6. TOOLCHAIN SYMLINKING
     echo "[ ~ ] Symlinking Clang..."
     WORKSPACE_DIR="$PWD/workspace/kernel_platform"
     CLANG_SEARCH_PATH="$PWD/toolchains/linux-x86"
     LATEST_CLANG=$(find "$CLANG_SEARCH_PATH" -maxdepth 3 -name "clang" -type f | sort | tail -n 1 | xargs -I{} dirname {} | xargs -I{} dirname {})
 
-    # Extract CLANG_VERSION manually from configs
     CLANG_VERSION_VALUE=$(grep -rh "^CLANG_VERSION=" "$WORKSPACE_DIR/msm-kernel/" "$WORKSPACE_DIR/common/" "$WORKSPACE_DIR/build/" 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '"' | tr -d "'")
     CLANG_PREBUILT_BIN_VALUE="prebuilts/clang/host/linux-x86/clang-''${CLANG_VERSION_VALUE}/bin"
     EXPECTED_CLANG_ROOT="$WORKSPACE_DIR/$(dirname "$CLANG_PREBUILT_BIN_VALUE")"
@@ -204,7 +244,6 @@ pkgs.stdenv.mkDerivation {
     autoPatchelf toolchains workspace/kernel_platform/prebuilts workspace/kernel_platform/tools
 
     # 8. PERMANENT FIX: Lobotomize build_image
-    # We don't need Android .img packaging, and the sandbox breaks this bundled Python binary.
     echo "[ ~ ] Lobotomizing build_image to bypass Python packaging crashes..."
     rm -f workspace/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/build_image
     echo '#!/bin/sh' > workspace/kernel_platform/prebuilts/kernel-build-tools/linux-x86/bin/build_image
@@ -270,29 +309,27 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out
     echo "[ ~ ] Verifying Kernel Image size..."
 
-    # Dynamically find the built Image
-    IMG_PATH=$(find out -name "Image" -type f | head -n 1)
+    # Dynamically find the COMPRESSED Image
+    IMG_PATH=$(find out -name "Image.lz4" -type f | head -n 1)
 
     if [ -n "$IMG_PATH" ]; then
         SIZE=$(stat -c%s "$IMG_PATH")
-        echo "[ + ] Kernel size: $((SIZE / 1024 / 1024)) MB"
+        echo "[ + ] Compressed Kernel size: $((SIZE / 1024 / 1024)) MB"
         
-        # 32MB is a very safe limit for most GKI boot partitions
+        # The compressed Image.lz4 should easily be under 32MB
         if [ $SIZE -gt 33554432 ]; then
-            echo "[ ! ] WARNING: Kernel Image is larger than 32MB. This might be tight for some partitions."
+            echo "[ ! ] WARNING: Compressed Kernel Image is larger than 32MB. This might be tight for some partitions."
         fi
     else
-        echo "[ ! ] Could not find Image to check size, but copying artifacts anyway."
+        echo "[ ! ] Could not find Image.lz4 to check size, but copying artifacts anyway."
     fi
 
     echo "[ ~ ] Collecting artifacts..."
-    # We will copy the specific 'dist' folder you found earlier so it's clean and easy to use
     DIST_DIR=$(find out -name "dist" -type d | head -n 1)
 
     if [ -n "$DIST_DIR" ]; then
         cp -r $DIST_DIR/* $out/
     else
-        # Fallback if 'dist' is not found
         cp -r workspace/kernel_platform/out $out/
     fi
   '';
