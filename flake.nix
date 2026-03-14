@@ -91,6 +91,8 @@
             name = "op11-kernel-fhs-env";
             targetPkgs =
               pkgs: with pkgs; [
+                xxd
+                lz4
                 toybox
                 magiskboot
                 zsh
