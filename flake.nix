@@ -85,6 +85,30 @@
         lib.foldl' (acc: variantName: acc // (readVariant variantName)) { } (builtins.attrNames variants)
       );
 
+      # ── autopatcher app ────────────────────────────────────────────────────
+      # Usage: nix run .#autopatcher -- --variant M-salami
+      # Set ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY before running.
+      apps.${system}.autopatcher =
+        let
+          # Pull in the two provider libraries we need.
+          # If nixpkgs doesn't have one of these yet on your channel, just remove it —
+          # the script degrades gracefully to whatever keys are available.
+          pythonEnv = pkgs.python3.withPackages (
+            ps: with ps; [
+              anthropic
+              openai
+            ]
+          );
+        in
+        {
+          type = "app";
+          program = toString (
+            pkgs.writeShellScript "autopatcher" ''
+              exec ${pythonEnv}/bin/python3 ${./autopatcher/autopatcher.py} "$@"
+            ''
+          );
+        };
+
       devShells.${system}.default =
         let
           fhs = pkgs.buildFHSEnv {
