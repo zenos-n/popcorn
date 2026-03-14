@@ -113,6 +113,9 @@
                 echo 'alias ls="eza --icons"' >> $ZDOTDIR/.zshrc
                 echo 'setopt interactive_comments' >> $ZDOTDIR/.zshrc
               fi
+
+              mkdir -p workspace
+              cd workspace
             '';
 
             runScript = "zsh";

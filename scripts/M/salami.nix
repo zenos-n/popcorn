@@ -295,19 +295,19 @@ pkgs.stdenv.mkDerivation {
 
     cd workspace/kernel_platform
 
-    # Force Swappiness and Dirty Ratios at the kernel source level
-    # This ensures that even if Android tries to reset them, the defaults favor battery.
+    # HARDCORE SYSCTL OVERRIDE (For that 16GB RAM feel)
+    # Fixed path: Core memory management is in 'common/', not 'msm-kernel/'
     echo "[ ~ ] Surgery: Hardcoding 16GB-optimized sysctl defaults..."
-    sed -i 's/sysctl_overcommit_memory = OVERCOMMIT_GUESS/sysctl_overcommit_memory = OVERCOMMIT_ALWAYS/g' workspace/kernel_platform/msm-kernel/mm/util.c || true
+    sed -i 's/sysctl_overcommit_memory = OVERCOMMIT_GUESS/sysctl_overcommit_memory = OVERCOMMIT_ALWAYS/g' common/mm/util.c || true
 
     echo "[ ~ ] Building kernel..."
+
+    # Cleaned up the build command to prevent 'make' from misinterpreting flags
     PATH=$PATH BUILD_CONFIG=msm-kernel/build.config.msm.kalama ./build/build.sh \
       HOSTCC=gcc \
       HOSTCXX=g++ \
       SKIP_MRPROPER=1 \
-      LTO=full \
-      KCFLAGS="-Wno-strict-prototypes -O2" \
-      EXTRA_CMDS="CONFIG_KSU=y CONFIG_LOCALVERSION=\"-Mb-salami\"" || true
+      LTO=full || true
 
     echo "[ ~ ] Verifying Build Success..."
     IMG_PATH=$(find out -name "Image" -type f | head -n 1)
@@ -317,7 +317,6 @@ pkgs.stdenv.mkDerivation {
         exit 1
     else
         echo "[ + ] SUCCESS: Kernel Image generated successfully at $IMG_PATH"
-        # We DO NOT call 'exit 0' here so the installPhase can actually run!
     fi
   '';
 
