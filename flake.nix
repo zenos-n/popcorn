@@ -49,10 +49,8 @@
           rocmPackages.clr
           rocmPackages.hipblas
           rocmPackages.rocblas
-
         ]
       );
-
     in
     {
       packages = forAllSystems (
