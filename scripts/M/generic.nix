@@ -1,6 +1,7 @@
 {
   pkgs,
   gitHash ? "unknown",
+  isRelease ? false,
 }:
 
 let
@@ -11,7 +12,7 @@ let
 
   # The "Google Standard" GKI - Targeting Android 16 (6.12 LTS)
   kernelVersion = "6.12.x-gki";
-  popcornVersion = "1.0.0Mb-generic";
+  popcornVersion = "1.0.0M${if isRelease then "" else "b"}-generic";
 
   gkiSource = pkgs.fetchgit {
     url = "https://android.googlesource.com/kernel/common";
@@ -23,7 +24,7 @@ in
 (pkgsArm.linux_6_12.override {
   argsOverride = {
     src = gkiSource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}-${gitHash}";
+    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
     # For GKI, modDirVersion usually needs to be the exact base version (e.g., 6.12.0)
     # to maintain module compatibility across different GKI builds.
     modDirVersion = "6.12.0";

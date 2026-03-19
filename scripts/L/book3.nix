@@ -1,11 +1,12 @@
 {
   pkgs,
   gitHash ? "unknown",
+  isRelease ? false,
 }:
 
 let
   kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0Lb-book3";
+  popcornVersion = "1.0.0L${if isRelease then "" else "b"}-book3";
 
   # Fetching the official CachyOS 6.19.9-1 source tree.
   cachySource = pkgs.fetchFromGitHub {
@@ -19,7 +20,7 @@ in
 (pkgs.linux_6_19.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}-${gitHash}";
+    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
     modDirVersion = kernelVersion;
   };
 }).overrideAttrs

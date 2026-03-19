@@ -66,19 +66,27 @@
               variantPath = ./scripts + "/${variant}";
               deviceFiles = builtins.readDir variantPath;
               devices = lib.filterAttrs (n: v: v == "regular" && lib.hasSuffix ".nix" n) deviceFiles;
+
+              mkPkg =
+                deviceFile: isRelease:
+                let
+                  deviceName = lib.removeSuffix ".nix" deviceFile;
+                  pkgName = "${variant}-${deviceName}${lib.optionalString isRelease "-release"}";
+                  targetLogic = import (variantPath + "/${deviceFile}") {
+                    inherit pkgs isRelease;
+                    gitHash = if (self ? rev) then (builtins.substring 0 7 self.rev) else "dirty";
+                  };
+                in
+                lib.nameValuePair pkgName targetLogic;
             in
-            lib.mapAttrs' (
-              deviceFile: _:
-              let
-                deviceName = lib.removeSuffix ".nix" deviceFile;
-                pkgName = "${variant}-${deviceName}";
-                targetLogic = import (variantPath + "/${deviceFile}") {
-                  inherit pkgs;
-                  gitHash = if (self ? rev) then (builtins.substring 0 7 self.rev) else "dirty";
-                };
-              in
-              lib.nameValuePair pkgName targetLogic
-            ) devices;
+            lib.foldl' (acc: pair: acc // { ${pair.name} = pair.value; }) { } (
+              lib.concatLists (
+                lib.mapAttrsToList (deviceFile: _: [
+                  (mkPkg deviceFile false)
+                  (mkPkg deviceFile true)
+                ]) devices
+              )
+            );
 
           scriptsDir = builtins.readDir ./scripts;
           variants = lib.filterAttrs (n: v: v == "directory") scriptsDir;

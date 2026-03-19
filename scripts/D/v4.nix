@@ -1,11 +1,12 @@
 {
   pkgs,
   gitHash ? "unknown",
+  isRelease ? false,
 }:
 
 let
   kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0Db-v4";
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-v4";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -19,7 +20,7 @@ in
   argsOverride = {
     src = cachySource;
     # Package version for the Nix store
-    version = "${kernelVersion}-Popcorn-${popcornVersion}-${gitHash}";
+    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
     # modDirVersion MUST match the kernel's internal version string exactly (6.19.9)
     modDirVersion = kernelVersion;
   };

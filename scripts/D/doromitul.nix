@@ -1,11 +1,12 @@
 {
   pkgs,
   gitHash ? "unknown",
+  isRelease ? false,
 }:
 
 let
   kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0Db-doromitul";
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-doromitul";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -18,7 +19,7 @@ in
 (pkgs.linux_6_19.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}-${gitHash}";
+    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
     modDirVersion = kernelVersion; # Matches kernel's internal Makefile
   };
 }).overrideAttrs
