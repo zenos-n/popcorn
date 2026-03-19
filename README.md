@@ -37,6 +37,7 @@ The L family balances responsiveness with battery life and thermals.
 - **L-lts**: LTS version for laptops. Built for **x86_64-v3**.
 - **L-arm**: Experimental ARM variant of Popcorn-L.
 - **L-doromipad**: Custom-tailored for [doromiert's](https://doromiert.neg-zero.com/#tech) Thinkpad L13 Yoga Gen 1 (Comet Lake).
+- **L-book3**: Custom-tailored for [Blade0's](https://blade0.net)'s Galaxy Book 3 (750XFG-KA2UK).
 
 ## Server variants
 
