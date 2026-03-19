@@ -95,7 +95,6 @@ pkgs.stdenv.mkDerivation {
     autoPatchelfHook
     stdenv.cc.cc.lib
     tree
-    breakpointHook
     gcc
     binutils
     bc

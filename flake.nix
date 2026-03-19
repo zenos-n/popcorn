@@ -15,6 +15,7 @@
       system = "x86_64-linux";
       forAllSystems = nixpkgs.lib.genAttrs systems;
       pkgs = nixpkgs.legacyPackages.${system};
+
       magiskboot = pkgs.stdenv.mkDerivation {
         name = "magiskboot";
         src = pkgs.fetchFromGitHub {
@@ -27,31 +28,31 @@
         nativeBuildInputs = [ pkgs.autoPatchelfHook ];
         buildInputs = [ pkgs.stdenv.cc.cc.lib ];
 
-        # We use 'find' to locate the binary regardless of which 'out/x86_64'
-        # or 'out/aarch64' folder it's hiding in.
         installPhase = ''
           mkdir -p $out/bin
-          # Find the file named magiskboot, specifically the one for our arch
-          # We exclude the 'out' directory in the destination to avoid loops
-          BINARY=$(find . -type f -name "magiskboot" | grep "$(uname -m)" | head -n 1)
-
-          if [ -z "$BINARY" ]; then
-            echo "Fallback: looking for any magiskboot binary..."
-            BINARY=$(find . -type f -name "magiskboot" | head -n 1)
-          fi
-
-          if [ -n "$BINARY" ]; then
-            cp "$BINARY" $out/bin/magiskboot
-            chmod +x $out/bin/magiskboot
-          else
-            echo "Error: Could not find magiskboot binary in source tree"
-            ls -R
-            exit 1
-          fi
+          find . -name "magiskboot" -type f -exec cp {} $out/bin/ \;
+          chmod +x $out/bin/magiskboot
         '';
-
-        dontBuild = true;
       };
+
+      mlLibs = pkgs.lib.makeLibraryPath (
+        with pkgs;
+        [
+          stdenv.cc.cc.lib
+          zlib
+          zstd
+          libGL
+          glib
+          libxml2 # Required for some tokenizer backends
+          ncurses # Required by bitsandbytes/readline
+          rocmPackages.rocm-smi
+          rocmPackages.clr
+          rocmPackages.hipblas
+          rocmPackages.rocblas
+
+        ]
+      );
+
     in
     {
       packages = forAllSystems (
@@ -85,29 +86,31 @@
         lib.foldl' (acc: variantName: acc // (readVariant variantName)) { } (builtins.attrNames variants)
       );
 
-      # ── autopatcher app ────────────────────────────────────────────────────
-      # Usage: nix run .#autopatcher -- --variant M-salami
-      # Set ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY before running.
-      apps.${system}.autopatcher =
-        let
-          # Pull in the two provider libraries we need.
-          # If nixpkgs doesn't have one of these yet on your channel, just remove it —
-          # the script degrades gracefully to whatever keys are available.
-          pythonEnv = pkgs.python3.withPackages (
-            ps: with ps; [
-              anthropic
-              openai
-            ]
-          );
-        in
-        {
-          type = "app";
-          program = toString (
-            pkgs.writeShellScript "autopatcher" ''
-              exec ${pythonEnv}/bin/python3 ${./autopatcher/autopatcher.py} "$@"
-            ''
-          );
-        };
+      apps.${system}.autopatcher = {
+        type = "app";
+        program = toString (
+          pkgs.writeShellScript "autopatcher" ''
+            # Comprehensive library path for AI/ROCm stacks
+            export LD_LIBRARY_PATH="${mlLibs}:$LD_LIBRARY_PATH"
+
+            # Force RDNA2 compatibility
+            export HSA_OVERRIDE_GFX_VERSION=10.3.0
+
+            # Ensure we use Python 3.12 (highest supported by current ROCm wheels)
+            PYTHON_BIN="${pkgs.python312}/bin/python3"
+
+            if [ ! -d "$PWD/.venv" ]; then
+              echo "[Nix] Bootstrapping environment..."
+              $PYTHON_BIN -m venv $PWD/.venv
+              $PWD/.venv/bin/pip install --upgrade pip
+              $PWD/.venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.2
+              $PWD/.venv/bin/pip install airllm "transformers==4.45.2" accelerate "optimum<2.0.0" sentencepiece kernels
+            fi
+
+            exec $PWD/.venv/bin/python3 ${./autopatcher/autopatcher.py} "$@"
+          ''
+        );
+      };
 
       devShells.${system}.default =
         let
@@ -130,9 +133,6 @@
               export ZDOTDIR=$PWD/.zsh
               mkdir -p $ZDOTDIR
 
-              # ---------------------------------------------------------------
-              # zsh setup
-              # ---------------------------------------------------------------
               if [ ! -f $ZDOTDIR/.zshrc ]; then
                 echo 'source ${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme' > $ZDOTDIR/.zshrc
                 echo 'eval "$(zoxide init zsh)"' >> $ZDOTDIR/.zshrc
