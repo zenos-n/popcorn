@@ -46,7 +46,7 @@ The S family focuses on throughput and thermal consistency for 24/7 uptime.
 
 - **S-generic**: Built for **x86_64-v3** (Xeon E3/E5 v3+ / EPYC Naples+).
 - **S-v4**: Optimized for **x86_64-v4** (Xeon Scalable 3rd Gen+ / EPYC Genoa+).
-- **S-lts**: LTS version for servers. Built for **x86_64-v3**.
+- **S-arm**: Experimental ARM variant of Popcorn-S.
 - **S-nzserver**: Custom-tailored for [doromiert's](https://doromiert.neg-zero.com/#tech) main server ("Negative Zero Server").
 
 ## Mobile variants
