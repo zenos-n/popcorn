@@ -4,15 +4,15 @@
 }:
 
 let
-  kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0Lb-generic";
+  kernelVersion = "6.18.19";
+  popcornVersion = "1.0.0Lb-lts";
 
-  # Fetching the official CachyOS 6.19.9-1 source tree.
+  # Fetching the official LTS release from CachyOS
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.19.9-1";
-    hash = "sha256-fsCAaCdAGg3PoAFKUndGiWaGgV09Z/+3V+pbk/qBtt0=";
+    rev = "cachyos-6.18.19-1";
+    hash = "sha256-nbYxfasUK7VXDPU5IBzlPxChpF4U7zOO9Yvy8h9EJ1M=";
   };
 
 in
@@ -27,7 +27,6 @@ in
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.python3 ];
 
     structuredExtraConfig = with pkgs.lib.kernel; {
-      # Microarchitecture: Targeting Generic v3 (Per your README for L-generic)
       GENERIC_CPU_V3 = yes;
       GENERIC_CPU_V1 = no;
       GENERIC_CPU_V2 = no;
@@ -52,8 +51,8 @@ in
     ];
 
     postPatch = ''
-      echo "=== Popcorn Forge: Variant L (Laptop Generic v3) ==="
-      echo "[*] Source: CachyOS cachyos-6.19.9-1"
+      echo "=== Popcorn Forge: Variant L (Laptop LTS) ==="
+      echo "[*] Source: CachyOS cachyos-6.18.19-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
 
       patchShebangs scripts

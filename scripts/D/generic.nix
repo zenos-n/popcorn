@@ -49,7 +49,7 @@ in
     ];
 
     postPatch = ''
-      echo "=== Popcorn Forge: Variant (v3) ==="
+      echo "=== Popcorn Forge: Variant (Generic v3) ==="
       echo "[*] Source: CachyOS cachyos-6.19.9-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
 

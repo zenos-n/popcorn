@@ -5,7 +5,7 @@
 
 let
   kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0Lb-generic";
+  popcornVersion = "1.0.0Lb-arm";
 
   # Fetching the official CachyOS 6.19.9-1 source tree.
   cachySource = pkgs.fetchFromGitHub {
@@ -27,11 +27,8 @@ in
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.python3 ];
 
     structuredExtraConfig = with pkgs.lib.kernel; {
-      # Microarchitecture: Targeting Generic v3 (Per your README for L-generic)
-      GENERIC_CPU_V3 = yes;
-      GENERIC_CPU_V1 = no;
-      GENERIC_CPU_V2 = no;
-      GENERIC_CPU_V4 = no;
+      # We explicitly REMOVE the x86 GENERIC_CPU_V* logic here.
+      # Nixpkgs will automatically apply standard ARM64 configs when built on an AArch64 host.
 
       # Performance & Core Logic (Tuned for Battery/Thermals)
       HZ_300 = yes; # Lower tick rate (300Hz vs 1000Hz) reduces CPU wakeups and saves battery
@@ -45,14 +42,10 @@ in
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce yes;
     };
 
-    # Compiler optimization flags targeting x86-64-v3
-    makeFlags = (old.makeFlags or [ ]) ++ [
-      "KCFLAGS=-march=x86-64-v3 -O3"
-      "KCPPFLAGS=-march=x86-64-v3 -O3"
-    ];
+    makeFlags = (old.makeFlags or [ ]);
 
     postPatch = ''
-      echo "=== Popcorn Forge: Variant L (Laptop Generic v3) ==="
+      echo "=== Popcorn Forge: Variant L (Laptop ARM Experimental) ==="
       echo "[*] Source: CachyOS cachyos-6.19.9-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
 
