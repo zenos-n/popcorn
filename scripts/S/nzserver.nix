@@ -60,7 +60,7 @@ in
       # not having this made the build process scream
       HID = yes;
       INPUT_MISC = yes;
-      HID_HAPTIC = no;
+      HID_HAPTIC = pkgs.lib.mkForce no;
     };
 
     makeFlags = (old.makeFlags or [ ]) ++ [

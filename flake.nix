@@ -96,13 +96,10 @@
         type = "app";
         program = toString (
           pkgs.writeShellScript "autopatcher" ''
-            # Comprehensive library path for AI/ROCm stacks
             export LD_LIBRARY_PATH="${mlLibs}:$LD_LIBRARY_PATH"
 
-            # Force RDNA2 compatibility
             export HSA_OVERRIDE_GFX_VERSION=10.3.0
 
-            # Ensure we use Python 3.12 (highest supported by current ROCm wheels)
             PYTHON_BIN="${pkgs.python312}/bin/python3"
 
             if [ ! -d "$PWD/.venv" ]; then

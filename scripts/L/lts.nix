@@ -47,7 +47,7 @@ in
       # not having this made the build process scream
       HID = yes;
       INPUT_MISC = yes;
-      HID_HAPTIC = no;
+      HID_HAPTIC = pkgs.lib.mkForce no;
     };
 
     # Compiler optimization flags targeting x86-64-v3
