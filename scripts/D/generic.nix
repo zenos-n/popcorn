@@ -34,8 +34,8 @@ in
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.python3 ];
 
     structuredExtraConfig = with pkgs.lib.kernel; {
-      GENERIC_CPU_V4 = yes;
-      GENERIC_CPU_V1 = no;
+      GENERIC_CPU_V4 = no;
+      GENERIC_CPU_V1 = yes;
       GENERIC_CPU_V2 = no;
       GENERIC_CPU_V3 = no;
 
