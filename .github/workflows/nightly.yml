@@ -115,7 +115,7 @@ jobs:
           find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
           find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
 
-          MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
+          MOD_DIR=$(find -L . -path "*/lib/modules/*" -type d | head -n 1)
           if [ -n "$MOD_DIR" ]; then
               mkdir -p staging/lib/modules
               cp -rL "$MOD_DIR" staging/lib/modules/
@@ -190,7 +190,7 @@ jobs:
           find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
           find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
 
-          MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
+          MOD_DIR=$(find -L . -path "*/lib/modules/*" -type d | head -n 1)
           if [ -n "$MOD_DIR" ]; then
               mkdir -p staging/lib/modules
               cp -rL "$MOD_DIR" staging/lib/modules/
