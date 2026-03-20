@@ -1,5 +1,5 @@
 {
-  description = "Popcorn Multikernel Forge Dynamic Orchestrator";
+  description = "Popcorn Multikernel Forge Orchestrator";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

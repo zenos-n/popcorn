@@ -74,11 +74,10 @@ jobs:
       - name: Build ${{ matrix.variant }}
         id: build
         run: |
-          nix build .#${{ matrix.variant }} \
+          nix build .#${{ matrix.variant }} .#${{ matrix.variant }}.modules \
             --out-link result \
             --print-build-logs \
             2>&1
-        continue-on-error: true
 
       - name: Package ${{ matrix.variant }}
         if: steps.build.outcome == 'success'

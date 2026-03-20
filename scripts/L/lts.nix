@@ -43,6 +43,11 @@ in
       # Laptops benefit from MADVISE over ALWAYS to prevent power-hungry background memory compaction
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce no;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce yes;
+
+      # not having this made the build process scream
+      HID = yes;
+      INPUT_MISC = yes;
+      HID_HAPTIC = no;
     };
 
     # Compiler optimization flags targeting x86-64-v3

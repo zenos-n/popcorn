@@ -43,6 +43,11 @@ in
       # Memory Management
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce yes;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce no;
+
+      # not having this made the build process scream
+      HID = yes;
+      INPUT_MISC = yes;
+      HID_HAPTIC = no;
     };
 
     # Compiler optimization flags targeting x86-64-v3

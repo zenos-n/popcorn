@@ -57,7 +57,10 @@ in
       MAC80211 = no;
       CFG80211 = no;
 
-      # Audio: Usually not needed on a server, but left intact if you pass it through to VMs.
+      # not having this made the build process scream
+      HID = yes;
+      INPUT_MISC = yes;
+      HID_HAPTIC = no;
     };
 
     makeFlags = (old.makeFlags or [ ]) ++ [
