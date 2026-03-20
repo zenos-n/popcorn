@@ -26,9 +26,9 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED"
 
-          # Bail early if nothing kernel-related touched
-          if ! echo "$CHANGED" | grep -qE '^(scripts/.+\.nix|flake\.nix)$'; then
-            echo "No scripts or flake changed — skipping build."
+          # 1. Update the bail check to include the workflow file
+          if ! echo "$CHANGED" | grep -qE '^(scripts/.+\.nix|flake\.nix|\.github/workflows/nightly\.yml)$'; then
+            echo "No relevant files changed — skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
             echo 'matrix_generic={"include":[]}' >> "$GITHUB_OUTPUT"
             echo 'matrix_rest={"include":[]}' >> "$GITHUB_OUTPUT"
@@ -39,8 +39,9 @@ jobs:
 
           echo "should_build=true" >> "$GITHUB_OUTPUT"
 
-          # flake.nix changed → rebuild everything
-          if echo "$CHANGED" | grep -q '^flake\.nix$'; then
+          # 2. Rebuild everything if flake.nix OR the workflow changes
+          if echo "$CHANGED" | grep -qE '^(flake\.nix|\.github/workflows/nightly\.yml)$'; then
+            echo "Core configuration changed — rebuilding all variants."
             VARIANTS=$(find scripts -name '*.nix' \
               | sed 's|scripts/||; s|/|-|; s|\.nix$||')
           else
@@ -107,23 +108,43 @@ jobs:
       - name: Package ${{ matrix.variant }}
         id: pkg
         run: |
-          KVER=$(ls result-modules/lib/modules/ | head -1)
-          echo "Kernel version: $KVER"
+          # 1. Locate the modules directory and kernel version
+          # Searches for the first directory inside any 'lib/modules/' path found
+          MODULES_PATH=$(find result-modules -path "*/lib/modules/*" -type d -links 2 | head -n 1)
+          KVER=$(basename "$MODULES_PATH")
 
-          ZIPNAME="Popcorn ${KVER}.zip"
+          if [ -z "$KVER" ]; then
+            echo "Error: Could not find kernel modules."
+            exit 1
+          fi
+
+          echo "Kernel version: $KVER"
+          ZIPNAME="Popcorn_${KVER}.zip"
           echo "zipname=$ZIPNAME" >> "$GITHUB_OUTPUT"
 
           mkdir -p staging/modules
 
-          for img in bzImage Image zImage Image.gz; do
-            if [ -f "result-kernel/$img" ]; then
-              cp "result-kernel/$img" staging/
-              echo "Copied $img"
-              break
-            fi
-          done
+          # 2. Find and copy the Kernel Image (bzImage, Image, etc.)
+          # Searches for common kernel image names inside result-kernel
+          KERNEL_IMG=$(find result-kernel -type f \( -name "bzImage" -o -name "Image" -o -name "zImage" -o -name "Image.gz" \) | head -n 1)
+          if [ -f "$KERNEL_IMG" ]; then
+            cp "$KERNEL_IMG" staging/
+            echo "Copied $(basename "$KERNEL_IMG")"
+          else
+            echo "Error: Kernel image not found."
+            exit 1
+          fi
 
-          cp -r "result-modules/lib/modules/$KVER/." staging/modules/
+          # 3. Find and copy System.map (if needed)
+          MAP_FILE=$(find result-kernel result-modules -name "System.map" | head -n 1)
+          if [ -f "$MAP_FILE" ]; then
+            cp "$MAP_FILE" staging/
+            echo "Copied System.map"
+          fi
+
+          # 4. Copy the modules
+          cp -r "$MODULES_PATH/." staging/modules/
+
           zip -r "$ZIPNAME" staging/
           echo "Packaged: $ZIPNAME"
 
@@ -242,23 +263,43 @@ jobs:
       - name: Package ${{ matrix.variant }}
         id: pkg
         run: |
-          KVER=$(ls result/lib/modules/ | head -1)
-          echo "Kernel version: $KVER"
+          # 1. Locate the modules directory and kernel version
+          # Searches for the first directory inside any 'lib/modules/' path found
+          MODULES_PATH=$(find result-modules -path "*/lib/modules/*" -type d -links 2 | head -n 1)
+          KVER=$(basename "$MODULES_PATH")
 
-          ZIPNAME="Popcorn ${KVER}.zip"
+          if [ -z "$KVER" ]; then
+            echo "Error: Could not find kernel modules."
+            exit 1
+          fi
+
+          echo "Kernel version: $KVER"
+          ZIPNAME="Popcorn_${KVER}.zip"
           echo "zipname=$ZIPNAME" >> "$GITHUB_OUTPUT"
 
           mkdir -p staging/modules
 
-          for img in bzImage Image zImage Image.gz; do
-            if [ -f "result/$img" ]; then
-              cp "result/$img" staging/
-              echo "Copied $img"
-              break
-            fi
-          done
+          # 2. Find and copy the Kernel Image (bzImage, Image, etc.)
+          # Searches for common kernel image names inside result-kernel
+          KERNEL_IMG=$(find result-kernel -type f \( -name "bzImage" -o -name "Image" -o -name "zImage" -o -name "Image.gz" \) | head -n 1)
+          if [ -f "$KERNEL_IMG" ]; then
+            cp "$KERNEL_IMG" staging/
+            echo "Copied $(basename "$KERNEL_IMG")"
+          else
+            echo "Error: Kernel image not found."
+            exit 1
+          fi
 
-          cp -r "result/lib/modules/$KVER/." staging/modules/
+          # 3. Find and copy System.map (if needed)
+          MAP_FILE=$(find result-kernel result-modules -name "System.map" | head -n 1)
+          if [ -f "$MAP_FILE" ]; then
+            cp "$MAP_FILE" staging/
+            echo "Copied System.map"
+          fi
+
+          # 4. Copy the modules
+          cp -r "$MODULES_PATH/." staging/modules/
+
           zip -r "$ZIPNAME" staging/
           echo "Packaged: $ZIPNAME"
 
