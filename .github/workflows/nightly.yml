@@ -2,6 +2,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   # ── 1. Detect which variants actually need rebuilding ─────────────────────
   detect:
