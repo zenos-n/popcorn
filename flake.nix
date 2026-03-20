@@ -145,7 +145,6 @@
               mkdir -p workspace
               cd workspace
             '';
-
             runScript = "zsh";
           };
         in
