@@ -1,3 +1,5 @@
+name: Popcorn Nightly
+
 on:
   push:
     branches: [main]
