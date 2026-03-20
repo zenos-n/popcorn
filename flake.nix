@@ -43,8 +43,8 @@
           zstd
           libGL
           glib
-          libxml2 # Required for some tokenizer backends
-          ncurses # Required by bitsandbytes/readline
+          libxml2
+          ncurses
           rocmPackages.rocm-smi
           rocmPackages.clr
           rocmPackages.hipblas
