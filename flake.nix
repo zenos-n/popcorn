@@ -97,7 +97,6 @@
         program = toString (
           pkgs.writeShellScript "autopatcher" ''
             export LD_LIBRARY_PATH="${mlLibs}:$LD_LIBRARY_PATH"
-
             export HSA_OVERRIDE_GFX_VERSION=10.3.0
 
             PYTHON_BIN="${pkgs.python312}/bin/python3"

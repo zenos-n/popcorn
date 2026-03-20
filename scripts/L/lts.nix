@@ -44,10 +44,10 @@ in
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce no;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce yes;
 
-      # not having this made the build process scream
-      HID = yes;
+      HID = pkgs.lib.mkForce yes;
+      HID_GENERIC = pkgs.lib.mkForce yes;
       INPUT_MISC = yes;
-      HID_HAPTIC = pkgs.lib.mkForce no;
+      HID_HAPTIC = yes;
     };
 
     # Compiler optimization flags targeting x86-64-v3

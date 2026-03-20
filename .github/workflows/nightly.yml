@@ -97,15 +97,17 @@ jobs:
 
       - name: Build ${{ matrix.variant }}
         run: |
-          nix build .#${{ matrix.variant }} .#${{ matrix.variant }}.modules \
-            --out-link result \
-            --print-build-logs \
-            2>&1
+          nix build .#${{ matrix.variant }} \
+            --out-link result-kernel \
+            --print-build-logs 2>&1
+          nix build .#${{ matrix.variant }}.modules \
+            --out-link result-modules \
+            --print-build-logs 2>&1
 
       - name: Package ${{ matrix.variant }}
         id: pkg
         run: |
-          KVER=$(ls result/lib/modules/ | head -1)
+          KVER=$(ls result-modules/lib/modules/ | head -1)
           echo "Kernel version: $KVER"
 
           ZIPNAME="Popcorn ${KVER}.zip"
@@ -114,23 +116,16 @@ jobs:
           mkdir -p staging/modules
 
           for img in bzImage Image zImage Image.gz; do
-            if [ -f "result/$img" ]; then
-              cp "result/$img" staging/
+            if [ -f "result-kernel/$img" ]; then
+              cp "result-kernel/$img" staging/
               echo "Copied $img"
               break
             fi
           done
 
-          cp -r "result/lib/modules/$KVER/." staging/modules/
+          cp -r "result-modules/lib/modules/$KVER/." staging/modules/
           zip -r "$ZIPNAME" staging/
           echo "Packaged: $ZIPNAME"
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.variant }}
-          path: "*.zip"
-          if-no-files-found: warn
 
   # ── 3a. Publish nightly with generics (creates/recreates the release) ─────
   release_generic:

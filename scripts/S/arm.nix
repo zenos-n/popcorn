@@ -50,5 +50,10 @@ in
       echo "=== Popcorn Forge: Variant S (Server ARM Experimental) ==="
       echo "[*] Base: CachyOS 6.18.19-1 (LTS)"
       patchShebangs scripts tools
+
+      echo "[*] Nuking HID_HAPTIC select..."
+      find drivers/hid -name 'Kconfig' -exec sed -i '/select HID_HAPTIC/d' {} +
+      sed -i '/hid-haptic/d' drivers/hid/Makefile
+      sed -i '/hid-multitouch/d' drivers/hid/Makefile
     '';
   })
