@@ -19,6 +19,10 @@ For example, to build the generic desktop Popcorn kernel, you'd run:
 nix build .#D-generic
 ```
 
+---
+
+Aside from that, all variants are built using a GH action and released as nightly for testing. If you want to test them, head over to [releases](https://github.com/zenos-n/popcorn/releases).
+
 ## Desktop variants
 
 The D family focuses on responsiveness and lowest latency at all costs. It utilizes the BORE (Burst-Oriented Response Enhancer) scheduler.
