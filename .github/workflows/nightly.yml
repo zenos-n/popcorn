@@ -1,5 +1,3 @@
-name: Popcorn Nightly
-
 on:
   push:
     branches: [main]
@@ -57,7 +55,7 @@ jobs:
 
           # Split into generics and the rest
           GENERICS=$(echo "$VARIANTS" | grep    '\-generic$' || true)
-          REST=$(echo     "$VARIANTS" | grep -v '\-generic$' | grep -v '^$' || true)
+          REST=$(echo      "$VARIANTS" | grep -v '\-generic$' | grep -v '^$' || true)
 
           echo "Generic variants: $GENERICS"
           echo "Rest variants:    $REST"
@@ -88,141 +86,142 @@ jobs:
       matrix: ${{ fromJSON(needs.detect.outputs.matrix_generic) }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Nix
-          uses: cachix/install-nix-action@v25
-          with:
-              nix_path: nixpkgs=channel:nixos-unstable
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
-        - name: Build Kernel and Modules
-          run: |
-              nix build .#${{ matrix.variant }} --out-link result-kernel --print-build-logs
-              nix build .#${{ matrix.variant }}.modules --out-link result-modules --print-build-logs
+      - name: Build Kernel and Modules
+        run: |
+          nix build .#${{ matrix.variant }} --out-link result-kernel --print-build-logs
+          nix build .#${{ matrix.variant }}.modules --out-link result-modules --print-build-logs
 
-        - name: Package Artifacts
-          id: package
-          run: |
-              FULL_VERSION=$(nix eval .#${{ matrix.variant }}.version --raw)
-              
-              if [ -z "$FULL_VERSION" ]; then
-                  FULL_VERSION="${{ matrix.variant }}-$(git rev-parse --short HEAD)"
-              fi
+      - name: Package Artifacts
+        id: package
+        run: |
+          FULL_VERSION=$(nix eval .#${{ matrix.variant }}.version --raw)
 
-              ZIP_NAME="Popcorn-${FULL_VERSION}.zip"
-              
-              mkdir -p staging
-              find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
-              find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
-              
-              MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
-              if [ -n "$MOD_DIR" ]; then
-                  mkdir -p staging/lib/modules
-                  cp -rL "$MOD_DIR" staging/lib/modules/
-              fi
+          if [ -z "$FULL_VERSION" ]; then
+              FULL_VERSION="${{ matrix.variant }}-$(git rev-parse --short HEAD)"
+          fi
 
-              cd staging
-              zip -r9 "../$ZIP_NAME" ./*
-              cd ..
-              
-              echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          ZIP_NAME="Popcorn-${FULL_VERSION}.zip"
 
-        - name: Upload Artifact
-          uses: actions/upload-artifact@v4
-          with:
-              name: ${{ steps.package.outputs.zip_name }}
-              path: "*.zip"
+          mkdir -p staging
+          find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
+          find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
 
-# ── 3. Release Generic Variants ───────────────────────────────────────────
-release_generic:
+          MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
+          if [ -n "$MOD_DIR" ]; then
+              mkdir -p staging/lib/modules
+              cp -rL "$MOD_DIR" staging/lib/modules/
+          fi
+
+          cd staging
+          zip -r9 "../$ZIP_NAME" ./*
+          cd ..
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.zip_name }}
+          path: "*.zip"
+
+  # ── 3. Release Generic Variants ───────────────────────────────────────────
+  release_generic:
     needs: build_generic
     if: ${{ always() && needs.detect.outputs.has_generic == 'true' }}
     runs-on: ubuntu-latest
     steps:
-        - name: Download Artifacts
-          uses: actions/download-artifact@v4
-          with:
-              path: artifacts
-              pattern: Popcorn*
-              merge-multiple: true
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: Popcorn*
+          merge-multiple: true
 
-        - name: Publish Generic Nightly Release
-          uses: softprops/action-gh-release@v1
-          with:
-              tag_name: nightly
-              name: "Popcorn Nightly Build"
-              prerelease: true
-              files: artifacts/*.zip
+      - name: Publish Generic Nightly Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: nightly
+          name: "Popcorn Nightly Build"
+          prerelease: true
+          files: artifacts/*.zip
 
-# ── 4. Build Rest Variants ────────────────────────────────────────────────
-build_rest:
+  # ── 4. Build Rest Variants ────────────────────────────────────────────────
+  build_rest:
     needs: [detect, release_generic]
     if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
     runs-on: ubuntu-latest
     strategy:
-        fail-fast: false
-        matrix: ${{ fromJSON(needs.detect.outputs.matrix_rest) }}
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.matrix_rest) }}
     steps:
-        - uses: actions/checkout@v4
-        
-        - name: Install Nix
-          uses: cachix/install-nix-action@v25
-          with:
-              nix_path: nixpkgs=channel:nixos-unstable
+      - uses: actions/checkout@v4
 
-        - name: Build Kernel and Modules
-          run: |
-              nix build .#${{ matrix.variant }} --out-link result-kernel --print-build-logs
-              nix build .#${{ matrix.variant }}.modules --out-link result-modules --print-build-logs
+      - name: Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
-        - name: Package Artifacts
-          id: package
-          run: |
-              FULL_VERSION=$(nix eval .#${{ matrix.variant }}.version --raw)
-              
-              if [ -z "$FULL_VERSION" ]; then
-                  FULL_VERSION="${{ matrix.variant }}-$(git rev-parse --short HEAD)"
-              fi
+      - name: Build Kernel and Modules
+        run: |
+          nix build .#${{ matrix.variant }} --out-link result-kernel --print-build-logs
+          nix build .#${{ matrix.variant }}.modules --out-link result-modules --print-build-logs
 
-              ZIP_NAME="Popcorn-${FULL_VERSION}.zip"
-              
-              mkdir -p staging
-              find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
-              find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
-              
-              MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
-              if [ -n "$MOD_DIR" ]; then
-                  mkdir -p staging/lib/modules
-                  cp -rL "$MOD_DIR" staging/lib/modules/
-              fi
+      - name: Package Artifacts
+        id: package
+        run: |
+          FULL_VERSION=$(nix eval .#${{ matrix.variant }}.version --raw)
 
-              cd staging
-              zip -r9 "../$ZIP_NAME" ./*
-              cd ..
-              
-              echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          if [ -z "$FULL_VERSION" ]; then
+              FULL_VERSION="${{ matrix.variant }}-$(git rev-parse --short HEAD)"
+          fi
 
-        - name: Upload Artifact
-          uses: actions/upload-artifact@v4
-          with:
-              name: ${{ steps.package.outputs.zip_name }}
-              path: "*.zip"
+          ZIP_NAME="Popcorn-${FULL_VERSION}.zip"
 
-# ── 5. Release Final Variants ─────────────────────────────────────────────
-release_final:
+          mkdir -p staging
+          find -L result-kernel -name "bzImage" -type f -exec cp -L {} staging/ \;
+          find -L result-kernel -name "System.map" -type f -exec cp -L {} staging/ \;
+
+          MOD_DIR=$(find -L result-modules -path "*/lib/modules/*" -type d | head -n 1)
+          if [ -n "$MOD_DIR" ]; then
+              mkdir -p staging/lib/modules
+              cp -rL "$MOD_DIR" staging/lib/modules/
+          fi
+
+          cd staging
+          zip -r9 "../$ZIP_NAME" ./*
+          cd ..
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.zip_name }}
+          path: "*.zip"
+
+  # ── 5. Release Final Variants ─────────────────────────────────────────────
+  release_final:
     needs: build_rest
     if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
     runs-on: ubuntu-latest
     steps:
-        - name: Download Artifacts
-          uses: actions/download-artifact@v4
-          with:
-              path: artifacts
-              pattern: Popcorn*
-              merge-multiple: true
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: Popcorn*
+          merge-multiple: true
 
-        - name: Publish Final Nightly Release
-          uses: softprops/action-gh-release@v1
-          with:
-              tag_name: nightly
-              name: "Popcorn Nightly Build"
-              prerelease: true
-              files: artifacts/*.zip
+      - name: Publish Final Nightly Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: nightly
+          name: "Popcorn Nightly Build"
+          prerelease: true
+          files: artifacts/*.zip
