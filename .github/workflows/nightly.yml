@@ -9,8 +9,11 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.scan.outputs.matrix }}
       should_build: ${{ steps.scan.outputs.should_build }}
+      matrix_generic: ${{ steps.scan.outputs.matrix_generic }}
+      matrix_rest: ${{ steps.scan.outputs.matrix_rest }}
+      has_generic: ${{ steps.scan.outputs.has_generic }}
+      has_rest: ${{ steps.scan.outputs.has_rest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,7 +30,10 @@ jobs:
           if ! echo "$CHANGED" | grep -qE '^(scripts/.+\.nix|flake\.nix)$'; then
             echo "No scripts or flake changed — skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix_generic={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix_rest={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "has_generic=false" >> "$GITHUB_OUTPUT"
+            echo "has_rest=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -43,23 +49,41 @@ jobs:
               | sed 's|scripts/||; s|/|-|; s|\.nix$||')
           fi
 
-          # Exclude -release outputs (we only nightly dev builds)
+          # Exclude -release outputs (nightly dev builds only)
           VARIANTS=$(echo "$VARIANTS" | grep -v '\-release$')
 
-          echo "Variants to build: $VARIANTS"
+          echo "All variants to build: $VARIANTS"
 
-          # Build JSON matrix from variant list
-          INCLUDES=$(echo "$VARIANTS" | grep -v '^$' \
+          # Split into generics and the rest
+          GENERICS=$(echo "$VARIANTS" | grep    '\-generic$' || true)
+          REST=$(echo     "$VARIANTS" | grep -v '\-generic$' | grep -v '^$' || true)
+
+          echo "Generic variants: $GENERICS"
+          echo "Rest variants:    $REST"
+
+          # Emit matrix_generic
+          INCLUDES_G=$(echo "$GENERICS" | grep -v '^$' \
             | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
-          echo "matrix={\"include\":[$INCLUDES]}" >> "$GITHUB_OUTPUT"
+          echo "matrix_generic={\"include\":[$INCLUDES_G]}" >> "$GITHUB_OUTPUT"
+          [ -n "$INCLUDES_G" ] \
+            && echo "has_generic=true"  >> "$GITHUB_OUTPUT" \
+            || echo "has_generic=false" >> "$GITHUB_OUTPUT"
 
-  # ── 2. Build each changed variant in parallel, skip failures ─────────────
-  build:
+          # Emit matrix_rest
+          INCLUDES_R=$(echo "$REST" | grep -v '^$' \
+            | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
+          echo "matrix_rest={\"include\":[$INCLUDES_R]}" >> "$GITHUB_OUTPUT"
+          [ -n "$INCLUDES_R" ] \
+            && echo "has_rest=true"  >> "$GITHUB_OUTPUT" \
+            || echo "has_rest=false" >> "$GITHUB_OUTPUT"
+
+  # ── 2a. Build generic variants first ─────────────────────────────────────
+  build_generic:
     needs: detect
-    if: needs.detect.outputs.should_build == 'true'
+    if: needs.detect.outputs.should_build == 'true' && needs.detect.outputs.has_generic == 'true'
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.detect.outputs.matrix_generic) }}
       fail-fast: false
 
     steps:
@@ -72,7 +96,6 @@ jobs:
             accept-flake-config = true
 
       - name: Build ${{ matrix.variant }}
-        id: build
         run: |
           nix build .#${{ matrix.variant }} .#${{ matrix.variant }}.modules \
             --out-link result \
@@ -80,23 +103,16 @@ jobs:
             2>&1
 
       - name: Package ${{ matrix.variant }}
-        if: steps.build.outcome == 'success'
         id: pkg
         run: |
-          # Extract kernel version from modules dir (it's the directory name)
           KVER=$(ls result/lib/modules/ | head -1)
           echo "Kernel version: $KVER"
 
-          # Zip name matches "Popcorn x.y.zVb-variant (hash).zip" convention
-          # The full string lives in the modules dir name, e.g.:
-          # 6.19.9-Popcorn-1.0.0Db-generic-abc1234
           ZIPNAME="Popcorn ${KVER}.zip"
           echo "zipname=$ZIPNAME" >> "$GITHUB_OUTPUT"
-          echo "variant=${{ matrix.variant }}" >> "$GITHUB_OUTPUT"
 
           mkdir -p staging/modules
 
-          # Kernel image — handle both x86 (bzImage) and ARM (Image)
           for img in bzImage Image zImage Image.gz; do
             if [ -f "result/$img" ]; then
               cp "result/$img" staging/
@@ -105,25 +121,21 @@ jobs:
             fi
           done
 
-          # Modules
           cp -r "result/lib/modules/$KVER/." staging/modules/
-
           zip -r "$ZIPNAME" staging/
           echo "Packaged: $ZIPNAME"
 
       - name: Upload build artifact
-        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.variant }}
           path: "*.zip"
           if-no-files-found: warn
 
-  # ── 3. Publish nightly release — new builds + surviving previous ones ─────
-  release:
-    needs: [detect, build]
-    # Run even if some builds failed, as long as detection said we should build
-    if: always() && needs.detect.outputs.should_build == 'true'
+  # ── 3a. Publish nightly with generics (creates/recreates the release) ─────
+  release_generic:
+    needs: [detect, build_generic]
+    if: always() && needs.detect.outputs.should_build == 'true' && needs.detect.outputs.has_generic == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -131,7 +143,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download new build artifacts
+      - name: Download generic build artifacts
         uses: actions/download-artifact@v4
         with:
           path: new-builds
@@ -143,18 +155,13 @@ jobs:
         run: |
           mkdir -p prev-builds
           gh release download nightly --dir prev-builds 2>/dev/null || true
-
           echo "Previous assets:"
           ls prev-builds/ || echo "(none)"
 
-      - name: Merge — drop old zips for rebuilt variants
+      - name: Merge — drop old zips for rebuilt generic variants
         run: |
           mkdir -p final-builds
 
-          # Copy previous assets, but skip any variant that was just rebuilt
-          # Variant name is embedded in the zip: "Popcorn ...-<variant>-<hash>.zip"
-          # or "Popcorn ...-<variant>.zip" for release builds.
-          # We match by the variant slug appearing before the closing parenthesis/end.
           REBUILT_VARIANTS=$(ls new-builds/*.zip 2>/dev/null \
             | xargs -I{} basename {} .zip \
             | grep -oP '(?<=Popcorn )\S+' \
@@ -178,7 +185,6 @@ jobs:
             $KEEP && cp "$f" final-builds/
           done
 
-          # Add new builds
           cp new-builds/*.zip final-builds/ 2>/dev/null || true
 
           echo "Final release assets:"
@@ -191,11 +197,10 @@ jobs:
           echo "date=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
           echo "msg=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Publish nightly release
+      - name: Publish nightly release (generics)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete existing nightly tag/release so we can recreate it cleanly
           gh release delete nightly --yes 2>/dev/null || true
           git push origin :refs/tags/nightly 2>/dev/null || true
 
@@ -203,9 +208,127 @@ jobs:
             --title "Popcorn Nightly (${{ steps.info.outputs.date }})" \
             --notes "**Commit:** \`${{ steps.info.outputs.sha }}\` — ${{ steps.info.outputs.msg }}
 
-          Built variants in this run: $(ls new-builds/*.zip 2>/dev/null | xargs -I{} basename {} | tr '\n' ' ' || echo 'none')
+          Generic variants: $(ls new-builds/*.zip 2>/dev/null | xargs -I{} basename {} | tr '\n' ' ' || echo 'none')
+          Device variants: _(building…)_
 
           > Zips contain \`bzImage\`/\`Image\` + full \`modules/\` tree." \
             --prerelease \
             --target main \
             final-builds/*.zip
+
+  # ── 2b. Build device-specific variants after generics are released ────────
+  build_rest:
+    needs: [detect, release_generic]
+    if: |
+      always() &&
+      needs.detect.outputs.should_build == 'true' &&
+      needs.detect.outputs.has_rest == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect.outputs.matrix_rest) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build ${{ matrix.variant }}
+        run: |
+          nix build .#${{ matrix.variant }} .#${{ matrix.variant }}.modules \
+            --out-link result \
+            --print-build-logs \
+            2>&1
+
+      - name: Package ${{ matrix.variant }}
+        id: pkg
+        run: |
+          KVER=$(ls result/lib/modules/ | head -1)
+          echo "Kernel version: $KVER"
+
+          ZIPNAME="Popcorn ${KVER}.zip"
+          echo "zipname=$ZIPNAME" >> "$GITHUB_OUTPUT"
+
+          mkdir -p staging/modules
+
+          for img in bzImage Image zImage Image.gz; do
+            if [ -f "result/$img" ]; then
+              cp "result/$img" staging/
+              echo "Copied $img"
+              break
+            fi
+          done
+
+          cp -r "result/lib/modules/$KVER/." staging/modules/
+          zip -r "$ZIPNAME" staging/
+          echo "Packaged: $ZIPNAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.variant }}
+          path: "*.zip"
+          if-no-files-found: warn
+
+  # ── 3b. Append device zips to existing nightly release ───────────────────
+  release_final:
+    needs: [detect, build_rest]
+    if: always() && needs.detect.outputs.should_build == 'true' && needs.detect.outputs.has_rest == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download device build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: new-builds
+          merge-multiple: true
+
+      - name: Drop old device zips from release, upload new ones
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete any previously released zips for variants we just rebuilt
+          REBUILT_VARIANTS=$(ls new-builds/*.zip 2>/dev/null \
+            | xargs -I{} basename {} .zip \
+            | grep -oP '(?<=Popcorn )\S+' \
+            | grep -oP '[^-]+-[^-]+$' \
+            | sed 's/-[a-f0-9]\{7\}$//' \
+            | sort -u || true)
+
+          for v in $REBUILT_VARIANTS; do
+            gh release view nightly --json assets -q '.assets[].name' 2>/dev/null \
+              | grep "$v" \
+              | xargs -I{} gh release delete-asset nightly {} --yes 2>/dev/null || true
+          done
+
+          # Upload new device zips
+          if ls new-builds/*.zip 1>/dev/null 2>&1; then
+            gh release upload nightly new-builds/*.zip --clobber
+          fi
+
+      - name: Update release notes with final variant list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          MSG=$(git log -1 --pretty=%s)
+
+          # Grab all asset names now that everything is uploaded
+          ALL_ZIPS=$(gh release view nightly --json assets \
+            -q '.assets[].name' | tr '\n' ' ')
+
+          gh release edit nightly \
+            --notes "**Commit:** \`${SHA}\` — ${MSG}
+
+          All variants in this run: ${ALL_ZIPS}
+
+          > Zips contain \`bzImage\`/\`Image\` + full \`modules/\` tree."
