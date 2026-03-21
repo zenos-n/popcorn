@@ -35,9 +35,9 @@ in
 
     structuredExtraConfig = with pkgs.lib.kernel; {
       GENERIC_CPU_V4 = no;
-      GENERIC_CPU_V1 = yes;
+      GENERIC_CPU_V1 = no;
       GENERIC_CPU_V2 = no;
-      GENERIC_CPU_V3 = no;
+      GENERIC_CPU_V3 = yes;
 
       HZ_1000 = yes;
       SCHED_BORE = yes;
@@ -48,12 +48,12 @@ in
     };
 
     makeFlags = (old.makeFlags or [ ]) ++ [
-      "KCFLAGS=-march=x86-64-v4 -O3"
-      "KCPPFLAGS=-march=x86-64-v4 -O3"
+      "KCFLAGS=-march=x86-64-v3 -O3"
+      "KCPPFLAGS=-march=x86-64-v3 -O3"
     ];
 
     postPatch = ''
-      echo "=== Popcorn Forge: Variant D (Generic v4) ==="
+      echo "=== Popcorn Forge: Variant D (Generic v3) ==="
       echo "[*] Popcorn Version: ${popcornVersion}"
       echo "[*] Release Mode: ${if isRelease then "YES" else "NO"}"
 
