@@ -5,18 +5,18 @@
 }:
 
 let
-  kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-doromitul";
+  kernelVersion = "7.0.2";
+  popcornVersion = "2.0.0D${if isRelease then "" else "b"}-doromitul";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.19.9-1";
-    hash = "sha256-fsCAaCdAGg3PoAFKUndGiWaGgV09Z/+3V+pbk/qBtt0=";
+    rev = "cachyos-7.0.2-1";
+    hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
 in
-(pkgs.linux_6_19.override {
+(pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
     version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
@@ -86,7 +86,7 @@ in
 
     postPatch = ''
       echo "=== Popcorn Forge: Variant D (Doromitul Optimized) ==="
-      echo "[*] Source: CachyOS cachyos-6.19.9-1"
+      echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Target: Ryzen 9 7900 (6+6) + RX 6900XT"
 
       patchShebangs scripts

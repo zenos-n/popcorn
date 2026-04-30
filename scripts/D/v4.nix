@@ -5,18 +5,18 @@
 }:
 
 let
-  kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-v4";
+  kernelVersion = "7.0.2";
+  popcornVersion = "2.0.0D${if isRelease then "" else "b"}-v4";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.19.9-1";
-    hash = "sha256-fsCAaCdAGg3PoAFKUndGiWaGgV09Z/+3V+pbk/qBtt0=";
+    rev = "cachyos-7.0.2-1";
+    hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
 in
-(pkgs.linux_6_19.override {
+(pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
     # Package version for the Nix store
@@ -56,7 +56,7 @@ in
     # Fix shebangs for scripts and tools to allow BPF/BTF generation in Nix sandbox
     postPatch = ''
       echo "=== Popcorn Forge: Variant D (Generic v4) ==="
-      echo "[*] Source: CachyOS cachyos-6.19.9-1"
+      echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
 
       patchShebangs scripts

@@ -5,19 +5,19 @@
 }:
 
 let
-  kernelVersion = "6.19.9";
-  popcornVersion = "1.0.0L${if isRelease then "" else "b"}-book3";
+  kernelVersion = "7.0.2";
+  popcornVersion = "2.0.0L${if isRelease then "" else "b"}-book3";
 
   # Fetching the official CachyOS 6.19.9-1 source tree.
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.19.9-1";
-    hash = "sha256-fsCAaCdAGg3PoAFKUndGiWaGgV09Z/+3V+pbk/qBtt0=";
+    rev = "cachyos-7.0.2-1";
+    hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
 in
-(pkgs.linux_6_19.override {
+(pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
     version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
@@ -71,7 +71,7 @@ in
 
     postPatch = ''
       echo "=== Popcorn Forge: Variant L (Book3 Optimized) ==="
-      echo "[*] Source: CachyOS cachyos-6.19.9-1"
+      echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Target: Samsung Galaxy Book3 (i5-1335U, Raptor Lake)"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
 

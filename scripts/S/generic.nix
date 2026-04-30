@@ -5,14 +5,14 @@
 }:
 
 let
-  kernelVersion = "6.18.19";
-  popcornVersion = "1.0.0S${if isRelease then "" else "b"}-generic";
+  kernelVersion = "6.18.25";
+  popcornVersion = "2.0.0S${if isRelease then "" else "b"}-generic";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.18.19-1";
-    hash = "sha256-nbYxfasUK7VXDPU5IBzlPxChpF4U7zOO9Yvy8h9EJ1M=";
+    rev = "cachyos-6.18.25-1";
+    hash = "sha256-E7656WzsVUnac71xdx2S2Zt67TOBmY9BSbziwIpn4Vs=";
   };
 
 in

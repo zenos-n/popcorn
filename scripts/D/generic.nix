@@ -5,7 +5,7 @@
 }:
 
 let
-  kernelVersion = "6.19.9";
+  kernelVersion = "7.0.2";
 
   # Version Construction: 1.0.0D-generic (Release) vs 1.0.0Db-generic (Dev)
   popcornVersion = "1.0.0D${if isRelease then "" else "b"}-generic";
@@ -18,12 +18,12 @@ let
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
-    rev = "cachyos-6.19.9-1";
-    hash = "sha256-fsCAaCdAGg3PoAFKUndGiWaGgV09Z/+3V+pbk/qBtt0=";
+    rev = "cachyos-7.0.2-1";
+    hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
 in
-(pkgs.linux_6_19.override {
+(pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
     version = finalVersion;
@@ -45,6 +45,8 @@ in
 
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce yes;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce no;
+
+
     };
 
     makeFlags = (old.makeFlags or [ ]) ++ [
