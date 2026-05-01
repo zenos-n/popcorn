@@ -37,7 +37,6 @@ in
       PREEMPT_DYNAMIC = yes;
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce yes;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce no;
-      HID_HAPTIC = pkgs.lib.mkForce no;
     };
     makeFlags = (old.makeFlags or [ ]) ++ [
       "KCFLAGS=-march=x86-64-v3 -O3"

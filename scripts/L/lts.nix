@@ -51,7 +51,6 @@ in
       HID = pkgs.lib.mkForce yes;
       HID_GENERIC = pkgs.lib.mkForce yes;
       INPUT_MISC = yes;
-      HID_HAPTIC = yes;
     };
 
     # Compiler optimization flags targeting x86-64-v3
