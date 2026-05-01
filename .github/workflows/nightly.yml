@@ -29,7 +29,6 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED"
 
-          # 1. Update the bail check to include the workflow file
           if ! echo "$CHANGED" | grep -qE '^(scripts/.+\.nix|flake\.nix|\.github/workflows/nightly\.yml)$'; then
             echo "No relevant files changed — skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
@@ -42,7 +41,6 @@ jobs:
 
           echo "should_build=true" >> "$GITHUB_OUTPUT"
 
-          # 2. Rebuild everything if flake.nix OR the workflow changes
           if echo "$CHANGED" | grep -qE '^(flake\.nix|\.github/workflows/nightly\.yml)$'; then
             echo "Core configuration changed — rebuilding all variants."
             VARIANTS=$(find scripts -name '*.nix' \
@@ -53,19 +51,16 @@ jobs:
               | sed 's|scripts/||; s|/|-|; s|\.nix$||')
           fi
 
-          # Exclude -release outputs (nightly dev builds only)
           VARIANTS=$(echo "$VARIANTS" | grep -v '\-release$')
 
           echo "All variants to build: $VARIANTS"
 
-          # Split into generics and the rest
           GENERICS=$(echo "$VARIANTS" | grep    '\-generic$' || true)
           REST=$(echo      "$VARIANTS" | grep -v '\-generic$' | grep -v '^$' || true)
 
           echo "Generic variants: $GENERICS"
           echo "Rest variants:    $REST"
 
-          # Emit matrix_generic
           INCLUDES_G=$(echo "$GENERICS" | grep -v '^$' \
             | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
           echo "matrix_generic={\"include\":[$INCLUDES_G]}" >> "$GITHUB_OUTPUT"
@@ -73,7 +68,6 @@ jobs:
             && echo "has_generic=true"  >> "$GITHUB_OUTPUT" \
             || echo "has_generic=false" >> "$GITHUB_OUTPUT"
 
-          # Emit matrix_rest
           INCLUDES_R=$(echo "$REST" | grep -v '^$' \
             | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
           echo "matrix_rest={\"include\":[$INCLUDES_R]}" >> "$GITHUB_OUTPUT"
@@ -81,7 +75,50 @@ jobs:
             && echo "has_rest=true"  >> "$GITHUB_OUTPUT" \
             || echo "has_rest=false" >> "$GITHUB_OUTPUT"
 
-  # ── 2. Build Generic Variants ─────────────────────────────────────────────
+  # ── 2. Archive the current nightly before overwriting it ──────────────────
+  archive_nightly:
+    needs: detect
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Archive current nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+
+          if ! gh release view nightly --repo "$REPO" > /dev/null 2>&1; then
+            echo "No existing nightly release — nothing to archive."
+            exit 0
+          fi
+
+          mkdir -p archive-assets
+          gh release download nightly --repo "$REPO" --dir archive-assets 2>/dev/null || true
+
+          if [ -z "$(ls archive-assets/*.zip 2>/dev/null)" ]; then
+            echo "Nightly has no assets — just clearing it."
+            gh release delete nightly --repo "$REPO" --yes --cleanup-tag
+            exit 0
+          fi
+
+          # Derive tag from first zip: Popcorn-{version}.zip → archive-{version}
+          ZIP=$(ls archive-assets/*.zip | head -1)
+          VERSION=$(basename "$ZIP" .zip | sed 's/^Popcorn-//')
+          ARCHIVE_TAG="archive-${VERSION}"
+
+          echo "Archiving as: $ARCHIVE_TAG"
+
+          gh release create "$ARCHIVE_TAG" \
+            --repo "$REPO" \
+            --title "Archive: ${VERSION}" \
+            --notes "Archived nightly snapshot — $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --prerelease \
+            archive-assets/*.zip
+
+          # Nuke the nightly release so the next step starts clean
+          gh release delete nightly --repo "$REPO" --yes --cleanup-tag
+
+  # ── 3. Build Generic Variants ─────────────────────────────────────────────
   build_generic:
     needs: detect
     if: ${{ needs.detect.outputs.has_generic == 'true' }}
@@ -135,10 +172,10 @@ jobs:
           name: ${{ steps.package.outputs.zip_name }}
           path: "*.zip"
 
-  # ── 3. Release Generic Variants ───────────────────────────────────────────
+  # ── 4. Release Generic Variants ───────────────────────────────────────────
   release_generic:
-    needs: build_generic
-    if: ${{ always() && needs.detect.outputs.has_generic == 'true' }}
+    needs: [build_generic, archive_nightly]
+    if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
@@ -156,10 +193,10 @@ jobs:
           prerelease: true
           files: artifacts/*.zip
 
-  # ── 4. Build Rest Variants ────────────────────────────────────────────────
+  # ── 5. Build Rest Variants ────────────────────────────────────────────────
   build_rest:
-    needs: [detect, release_generic]
-    if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
+    needs: [detect, release_generic, archive_nightly]
+    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -210,7 +247,7 @@ jobs:
           name: ${{ steps.package.outputs.zip_name }}
           path: "*.zip"
 
-  # ── 5. Release Final Variants ─────────────────────────────────────────────
+  # ── 6. Release Final Variants ─────────────────────────────────────────────
   release_final:
     needs: build_rest
     if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}

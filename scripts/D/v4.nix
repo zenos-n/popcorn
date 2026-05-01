@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "7.0.2";
-  popcornVersion = "2.0.0D${if isRelease then "" else "b"}-v4";
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-v4";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -14,15 +14,17 @@ let
     rev = "cachyos-7.0.2-1";
     hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+  finalVersion = "${kernelVersion}-${popcornSuffix}";
 
 in
 (pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
     # Package version for the Nix store
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+    version = finalVersion;
     # modDirVersion MUST match the kernel's internal version string exactly (6.19.9)
-    modDirVersion = kernelVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
@@ -58,6 +60,8 @@ in
       echo "=== Popcorn Forge: Variant D (Generic v4) ==="
       echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       patchShebangs scripts
       patchShebangs tools

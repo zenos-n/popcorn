@@ -11,9 +11,8 @@ let
   popcornVersion = "1.0.0D${if isRelease then "" else "b"}-generic";
 
   # Final string: 6.19.9-Popcorn-1.0.0D-generic vs 6.19.9-Popcorn-1.0.0Db-generic-abc1234
-  finalVersion = "${kernelVersion}-Popcorn-${popcornVersion}${
-    if isRelease then "" else "-${gitHash}"
-  }";
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+  finalVersion = "${kernelVersion}-${popcornSuffix}";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -27,7 +26,7 @@ in
   argsOverride = {
     src = cachySource;
     version = finalVersion;
-    modDirVersion = kernelVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
@@ -46,7 +45,6 @@ in
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce yes;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce no;
 
-
     };
 
     makeFlags = (old.makeFlags or [ ]) ++ [
@@ -58,6 +56,8 @@ in
       echo "=== Popcorn Forge: Variant D (Generic v3) ==="
       echo "[*] Popcorn Version: ${popcornVersion}"
       echo "[*] Release Mode: ${if isRelease then "YES" else "NO"}"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       patchShebangs scripts
       patchShebangs tools

@@ -5,7 +5,7 @@
 }:
 let
   kernelVersion = "6.18.25";
-  popcornVersion = "2.0.0D${if isRelease then "" else "b"}-lts";
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-lts";
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
     repo = "linux";
@@ -13,17 +13,20 @@ let
     hash = "sha256-E7656WzsVUnac71xdx2S2Zt67TOBmY9BSbziwIpn4Vs=";
   };
 
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+  finalVersion = "${kernelVersion}-${popcornSuffix}";
+
 in
 (pkgs.linux_6_18.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
-    modDirVersion = kernelVersion;
+    version = finalVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.python3 ];
-    patches = (old.patches or [ ]) ++ [];
+    patches = (old.patches or [ ]) ++ [ ];
     structuredExtraConfig = with pkgs.lib.kernel; {
       GENERIC_CPU_V3 = yes;
       GENERIC_CPU_V1 = no;
@@ -44,6 +47,9 @@ in
       echo "=== Popcorn Forge: Variant (LTS) ==="
       echo "[*] Source: CachyOS cachyos-6.18.25-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
+
       patchShebangs scripts
       patchShebangs tools
     '';

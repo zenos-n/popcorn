@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "7.0.2";
-  popcornVersion = "2.0.0D${if isRelease then "" else "b"}-doromitul";
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-doromitul";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -15,12 +15,14 @@ let
     hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+  finalVersion = "${kernelVersion}-${popcornSuffix}";
 in
 (pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
-    modDirVersion = kernelVersion; # Matches kernel's internal Makefile
+    version = finalVersion;
+    modDirVersion = finalVersion; # Matches kernel's internal Makefile
   };
 }).overrideAttrs
   (old: {
@@ -88,6 +90,8 @@ in
       echo "=== Popcorn Forge: Variant D (Doromitul Optimized) ==="
       echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Target: Ryzen 9 7900 (6+6) + RX 6900XT"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       patchShebangs scripts
       patchShebangs tools

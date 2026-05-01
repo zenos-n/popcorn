@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "6.18.25";
-  popcornVersion = "2.0.0L${if isRelease then "" else "b"}-lts";
+  popcornVersion = "1.0.0L${if isRelease then "" else "b"}-lts";
 
   # Fetching the official LTS release from CachyOS
   cachySource = pkgs.fetchFromGitHub {
@@ -15,13 +15,17 @@ let
     rev = "cachyos-6.18.25-1";
     hash = "sha256-E7656WzsVUnac71xdx2S2Zt67TOBmY9BSbziwIpn4Vs=";
   };
+  finalVersion = "${kernelVersion}-Popcorn-${popcornVersion}${
+    if isRelease then "" else "-${gitHash}"
+  }";
 
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
 in
 (pkgs.linux_6_18.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
-    modDirVersion = kernelVersion;
+    version = finalVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
@@ -60,6 +64,8 @@ in
       echo "=== Popcorn Forge: Variant L (Laptop LTS) ==="
       echo "[*] Source: CachyOS cachyos-6.18.25-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       patchShebangs scripts
       patchShebangs tools

@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "7.0.2";
-  popcornVersion = "2.0.0L${if isRelease then "" else "b"}-book3";
+  popcornVersion = "1.0.0L${if isRelease then "" else "b"}-book3";
 
   # Fetching the official CachyOS 6.19.9-1 source tree.
   cachySource = pkgs.fetchFromGitHub {
@@ -16,12 +16,18 @@ let
     hash = "sha256-iEaR1I1cIGBF5bEzyt9sz0N6XkxFqtb51To3PFF5CTQ=";
   };
 
+  finalVersion = "${kernelVersion}-Popcorn-${popcornVersion}${
+    if isRelease then "" else "-${gitHash}"
+  }";
+
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
+
 in
 (pkgs.linux_7_0.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
-    modDirVersion = kernelVersion;
+    version = finalVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
@@ -74,6 +80,8 @@ in
       echo "[*] Source: CachyOS cachyos-7.0.2-1"
       echo "[*] Target: Samsung Galaxy Book3 (i5-1335U, Raptor Lake)"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       patchShebangs scripts
       patchShebangs tools

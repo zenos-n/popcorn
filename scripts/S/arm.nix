@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "6.18.25";
-  popcornVersion = "2.0.0S${if isRelease then "" else "b"}-arm";
+  popcornVersion = "1.0.0S${if isRelease then "" else "b"}-arm";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -14,13 +14,17 @@ let
     rev = "cachyos-6.18.25-1";
     hash = "sha256-E7656WzsVUnac71xdx2S2Zt67TOBmY9BSbziwIpn4Vs=";
   };
+  finalVersion = "${kernelVersion}-Popcorn-${popcornVersion}${
+    if isRelease then "" else "-${gitHash}"
+  }";
 
+  popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
 in
 (pkgs.linux_6_18.override {
   argsOverride = {
     src = cachySource;
-    version = "${kernelVersion}-Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
-    modDirVersion = kernelVersion;
+    version = finalVersion;
+    modDirVersion = finalVersion;
   };
 }).overrideAttrs
   (old: {
@@ -50,6 +54,8 @@ in
       echo "=== Popcorn Forge: Variant S (Server ARM Experimental) ==="
       echo "[*] Base: CachyOS 6.18.19-1 (LTS)"
       patchShebangs scripts tools
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
       echo "[*] Nuking HID_HAPTIC select..."
       find drivers/hid -name 'Kconfig' -exec sed -i '/select HID_HAPTIC/d' {} +
