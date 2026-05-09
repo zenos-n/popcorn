@@ -55,10 +55,16 @@ jobs:
             [ -n "$INCLUDES_REL" ] \
               && echo "has_release=true"  >> "$GITHUB_OUTPUT" \
               || echo "has_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo 'matrix_release={"include":[]}' >> "$GITHUB_OUTPUT"
-            echo "has_release=false" >> "$GITHUB_OUTPUT"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo 'matrix_generic={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix_rest={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "has_generic=false" >> "$GITHUB_OUTPUT"
+            echo "has_rest=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          echo 'matrix_release={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo "has_release=false" >> "$GITHUB_OUTPUT"
 
           # ── Nightly build gate ──────────────────────────────────────────
           if ! echo "$CHANGED" | grep -qE '^(scripts/.+\.nix|flake\.nix|\.github/workflows/nightly\.yml)$'; then
@@ -110,7 +116,7 @@ jobs:
   # ── 2. Archive the current nightly before overwriting it ──────────────────
   archive_nightly:
     needs: detect
-    if: ${{ needs.detect.outputs.should_build == 'true' && needs.detect.outputs.is_release != 'true' }}
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Archive current nightly release
@@ -152,7 +158,7 @@ jobs:
   # ── 3. Build Generic Variants ─────────────────────────────────────────────
   build_generic:
     needs: detect
-    if: ${{ needs.detect.outputs.has_generic == 'true' && needs.detect.outputs.is_release != 'true' }}
+    if: ${{ needs.detect.outputs.has_generic == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -207,7 +213,7 @@ jobs:
   # ── 4. Release Generic Variants ───────────────────────────────────────────
   release_generic:
     needs: [build_generic, archive_nightly]
-    if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.detect.outputs.is_release != 'true' && needs.archive_nightly.result != 'failure' }}
+    if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
@@ -228,7 +234,7 @@ jobs:
   # ── 5. Build Rest Variants ────────────────────────────────────────────────
   build_rest:
     needs: [detect, release_generic, archive_nightly]
-    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.detect.outputs.is_release != 'true' && needs.archive_nightly.result != 'failure' }}
+    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -283,7 +289,7 @@ jobs:
   # ── 6. Release Final Variants ─────────────────────────────────────────────
   release_final:
     needs: build_rest
-    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.detect.outputs.is_release != 'true' }}
+    if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
