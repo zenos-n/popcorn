@@ -44,8 +44,10 @@ jobs:
 
           # ── Build all *-release variants when triggered ─────────────────
           if [ "$IS_RELEASE" = "true" ]; then
-            RELEASE_VARIANTS=$(find scripts -name '*-release.nix' \
-              | sed 's|scripts/||; s|/|-|; s|\.nix$||')
+            RELEASE_VARIANTS=$(find scripts -name '*.nix' \
+              | sed 's|scripts/||; s|/|-|; s|\.nix$||' \
+              | grep -v '\-release$' \
+              | sed 's/$/-release/')
             echo "Release variants: $RELEASE_VARIANTS"
             INCLUDES_REL=$(echo "$RELEASE_VARIANTS" | grep -v '^$' \
               | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
