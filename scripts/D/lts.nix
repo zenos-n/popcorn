@@ -37,6 +37,10 @@ in
       PREEMPT_DYNAMIC = yes;
       TRANSPARENT_HUGEPAGE_ALWAYS = pkgs.lib.mkForce yes;
       TRANSPARENT_HUGEPAGE_MADVISE = pkgs.lib.mkForce no;
+
+      HID = yes;
+      INPUT_MISC = yes;
+      HID_HAPTIC = pkgs.lib.mkForce no;
     };
     makeFlags = (old.makeFlags or [ ]) ++ [
       "KCFLAGS=-march=x86-64-v3 -O3"
@@ -46,6 +50,11 @@ in
       echo "=== Popcorn Forge: Variant (LTS) ==="
       echo "[*] Source: CachyOS cachyos-6.18.25-1"
       echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      echo "[*] Nuking HID_HAPTIC select..."
+      find drivers/hid -name 'Kconfig' -exec sed -i '/select HID_HAPTIC/d' {} +
+      sed -i '/hid-haptic/d' drivers/hid/Makefile
+      sed -i '/hid-multitouch/d' drivers/hid/Makefile
 
       sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
