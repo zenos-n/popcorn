@@ -110,7 +110,7 @@ jobs:
   # ── 2. Archive the current nightly before overwriting it ──────────────────
   archive_nightly:
     needs: detect
-    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    if: ${{ needs.detect.outputs.should_build == 'true' && needs.detect.outputs.is_release != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Archive current nightly release
@@ -152,7 +152,7 @@ jobs:
   # ── 3. Build Generic Variants ─────────────────────────────────────────────
   build_generic:
     needs: detect
-    if: ${{ needs.detect.outputs.has_generic == 'true' }}
+    if: ${{ needs.detect.outputs.has_generic == 'true' && needs.detect.outputs.is_release != 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -207,7 +207,7 @@ jobs:
   # ── 4. Release Generic Variants ───────────────────────────────────────────
   release_generic:
     needs: [build_generic, archive_nightly]
-    if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.archive_nightly.result != 'failure' }}
+    if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.detect.outputs.is_release != 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
@@ -228,7 +228,7 @@ jobs:
   # ── 5. Build Rest Variants ────────────────────────────────────────────────
   build_rest:
     needs: [detect, release_generic, archive_nightly]
-    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.archive_nightly.result != 'failure' }}
+    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.detect.outputs.is_release != 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -283,7 +283,7 @@ jobs:
   # ── 6. Release Final Variants ─────────────────────────────────────────────
   release_final:
     needs: build_rest
-    if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
+    if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.detect.outputs.is_release != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
