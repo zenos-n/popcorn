@@ -70,3 +70,22 @@ in
       "KCPPFLAGS=-march=tigerlake -O3"
     ];
 
+    postPatch = ''
+      echo "=== Popcorn Forge: Variant L (Asus F15 Optimized) ==="
+      echo "[*] Source: CachyOS cachyos-7.0.2-1"
+      echo "[*] Target: Asus TUF F15 (i7-11800H, RTX 3050)"
+      echo "[*] Popcorn Version: ${popcornVersion} (${gitHash})"
+
+      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
+
+      echo "[*] Bundling headers for ZenOS dev output..." 
+      mkdir -p $out/lib/modules/${finalVersion}/build 
+      cp -r .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
+      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
+      cp -r $out/lib/modules/${finalVersion}/* $out/lib/modules/${finalVersion}/build/ 
+      ln -s $out/lib/modules/${finalVersion}/build $out/build
+
+      patchShebangs scripts
+      patchShebangs tools
+    '';
+  })
