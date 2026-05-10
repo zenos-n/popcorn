@@ -58,23 +58,3 @@ in
       "KCPPFLAGS=-march=x86-64-v4 -O3"
     ];
 
-    postPatch = ''
-      echo "=== Popcorn Forge: Variant S (Server v4) ==="
-      echo "[*] Base: CachyOS 6.18.19-1 (LTS)"
-      patchShebangs scripts tools
-
-      sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
-
-      echo "[*] Bundling headers for ZenOS dev output..." 
-      mkdir -p $out/lib/modules/${finalVersion}/build 
-      cp -r .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
-      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
-      cp -r $out/lib/modules/${finalVersion}/* $out/lib/modules/${finalVersion}/build/ 
-      ln -s $out/lib/modules/${finalVersion}/build $out/build
-
-      echo "[*] Nuking HID_HAPTIC select..."
-      find drivers/hid -name 'Kconfig' -exec sed -i '/select HID_HAPTIC/d' {} +
-      sed -i '/hid-haptic/d' drivers/hid/Makefile
-      sed -i '/hid-multitouch/d' drivers/hid/Makefile
-    '';
-  })
