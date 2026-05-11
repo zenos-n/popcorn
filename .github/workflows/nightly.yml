@@ -11,6 +11,7 @@ jobs:
   # ── 1. Detect which variants actually need rebuilding ─────────────────────
   detect:
     runs-on: ubuntu-latest
+    environment: build
     outputs:
       should_build: ${{ steps.scan.outputs.should_build }}
       is_release: ${{ steps.scan.outputs.is_release }}
@@ -118,6 +119,7 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
+    environment: build
     steps:
       - name: Archive current nightly release
         env:
@@ -160,6 +162,7 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.has_generic == 'true' }}
     runs-on: ubuntu-latest
+    environment: build
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect.outputs.matrix_generic) }}
@@ -221,6 +224,7 @@ jobs:
     needs: [build_generic, archive_nightly]
     if: ${{ always() && needs.detect.outputs.has_generic == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
+    environment: build
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -242,6 +246,7 @@ jobs:
     needs: [detect, release_generic, archive_nightly]
     if: ${{ always() && needs.detect.outputs.has_rest == 'true' && needs.archive_nightly.result != 'failure' }}
     runs-on: ubuntu-latest
+    environment: build
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect.outputs.matrix_rest) }}
@@ -303,6 +308,7 @@ jobs:
     needs: build_rest
     if: ${{ always() && needs.detect.outputs.has_rest == 'true' }}
     runs-on: ubuntu-latest
+    environment: build
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -324,6 +330,7 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.has_release == 'true' }}
     runs-on: ubuntu-latest
+    environment: build
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect.outputs.matrix_release) }}
@@ -385,6 +392,7 @@ jobs:
     needs: [detect, build_release]
     if: ${{ always() && needs.detect.outputs.has_release == 'true' && needs.build_release.result == 'success' }}
     runs-on: ubuntu-latest
+    environment: build
     steps:
       - uses: actions/checkout@v4
 
