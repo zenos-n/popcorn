@@ -83,11 +83,3 @@ in
       patchShebangs tools
     '';
 
-    postInstall = '' 
-      echo "[*] Bundling headers for ZenOS dev output..." 
-      mkdir -p $out/lib/modules/${finalVersion}/build 
-      cp .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
-      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
-      ln -s $out/lib/modules/${finalVersion}/build $out/build 
-    '';
-  })
