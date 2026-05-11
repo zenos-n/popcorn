@@ -39,31 +39,32 @@ jobs:
           IS_RELEASE=false
           if echo "$COMMIT_MSG" | grep -q '\[RELEASE\]'; then
             IS_RELEASE=true
-            echo "Release trigger detected."
           fi
           echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
 
-          # ── Build all *-release variants when triggered ─────────────────
           if [ "$IS_RELEASE" = "true" ]; then
-            RELEASE_VARIANTS=$(find scripts -name '*.nix' \
-              | sed 's|scripts/||; s|/|-|; s|\.nix$||' \
-              | grep -v '\-release$' \
-              | sed 's/$/-release/')
-            echo "Release variants: $RELEASE_VARIANTS"
-            INCLUDES_REL=$(echo "$RELEASE_VARIANTS" | grep -v '^$' \
-              | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
-            echo "matrix_release={\"include\":[$INCLUDES_REL]}" >> "$GITHUB_OUTPUT"
-            [ -n "$INCLUDES_REL" ] \
-              && echo "has_release=true"  >> "$GITHUB_OUTPUT" \
-              || echo "has_release=false" >> "$GITHUB_OUTPUT"
+            # Only build release variants if scripts actually changed OR
+            # if we want to force it via the commit message
+            if echo "$CHANGED" | grep -q '^scripts/'; then
+              RELEASE_VARIANTS=$(find scripts -name '*.nix' \
+                | sed 's|scripts/||; s|/|-|; s|\.nix$||' \
+                | grep -v '\-release$' \
+                | sed 's/$/-release/')
+
+              INCLUDES_REL=$(echo "$RELEASE_VARIANTS" | grep -v '^$' \
+                | awk '{printf "%s{\"variant\":\"%s\"}", (NR>1?",":""), $0}')
+              echo "matrix_release={\"include\":[$INCLUDES_REL]}" >> "$GITHUB_OUTPUT"
+              echo "has_release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Release triggered but no scripts changed — skipping recompile."
+              echo "matrix_release={\"include\":[]}" >> "$GITHUB_OUTPUT"
+              echo "has_release=false" >> "$GITHUB_OUTPUT"
+            fi
+
+            # Ensure nightly jobs don't run during a release
             echo "should_build=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix_generic={"include":[]}' >> "$GITHUB_OUTPUT"
-            echo 'matrix_rest={"include":[]}' >> "$GITHUB_OUTPUT"
-            echo "has_generic=false" >> "$GITHUB_OUTPUT"
-            echo "has_rest=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           echo 'matrix_release={"include":[]}' >> "$GITHUB_OUTPUT"
           echo "has_release=false" >> "$GITHUB_OUTPUT"
 
