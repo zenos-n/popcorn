@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "7.0.2";
-  popcornVersion = "1.1.0L${if isRelease then "" else "b"}-arm";
+  popcornVersion = "1.0.0L${if isRelease then "" else "b"}-arm";
 
   # Fetching the official CachyOS 6.19.9-1 source tree.
   cachySource = pkgs.fetchFromGitHub {
@@ -58,16 +58,7 @@ in
 
       sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
-
       patchShebangs scripts
       patchShebangs tools
-    '';
-
-    postInstall = '' 
-      echo "[*] Bundling headers for ZenOS dev output..." 
-      mkdir -p $out/lib/modules/${finalVersion}/build 
-      cp .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
-      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
-      ln -s $out/lib/modules/${finalVersion}/build $out/build 
     '';
   })

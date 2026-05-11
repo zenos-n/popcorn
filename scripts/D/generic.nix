@@ -7,10 +7,10 @@
 let
   kernelVersion = "7.0.2";
 
-  # Version Construction: 1.1.0D-generic (Release) vs 1.1.0Db-generic (Dev)
-  popcornVersion = "1.1.0D${if isRelease then "" else "b"}-generic";
+  # Version Construction: 1.0.0D-generic (Release) vs 1.0.0Db-generic (Dev)
+  popcornVersion = "1.0.0D${if isRelease then "" else "b"}-generic";
 
-  # Final string: 6.19.9-Popcorn-1.1.0D-generic vs 6.19.9-Popcorn-1.1.0Db-generic-abc1234
+  # Final string: 6.19.9-Popcorn-1.0.0D-generic vs 6.19.9-Popcorn-1.0.0Db-generic-abc1234
   popcornSuffix = "Popcorn-${popcornVersion}${if isRelease then "" else "-${gitHash}"}";
   finalVersion = "${kernelVersion}-${popcornSuffix}";
 
@@ -59,16 +59,7 @@ in
 
       sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
 
-
       patchShebangs scripts
       patchShebangs tools
-    '';
-
-    postInstall = '' 
-      echo "[*] Bundling headers for ZenOS dev output..." 
-      mkdir -p $out/lib/modules/${finalVersion}/build 
-      cp .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
-      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
-      ln -s $out/lib/modules/${finalVersion}/build $out/build 
     '';
   })

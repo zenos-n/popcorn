@@ -6,7 +6,7 @@
 
 let
   kernelVersion = "6.18.25";
-  popcornVersion = "1.1.0S${if isRelease then "" else "b"}-arm";
+  popcornVersion = "1.0.0S${if isRelease then "" else "b"}-arm";
 
   cachySource = pkgs.fetchFromGitHub {
     owner = "CachyOS";
@@ -56,7 +56,6 @@ in
       patchShebangs scripts tools
 
       sed -i "s/^EXTRAVERSION =.*/EXTRAVERSION = -${popcornSuffix}/" Makefile
-
 
       echo "[*] Nuking HID_HAPTIC select..."
       find drivers/hid -name 'Kconfig' -exec sed -i '/select HID_HAPTIC/d' {} +
