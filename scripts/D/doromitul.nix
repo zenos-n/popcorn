@@ -80,6 +80,9 @@ in
       # left alone to inherit NixOS/Cachy defaults.
     };
 
+    dontPatchELF = true;
+    dontStrip = true;
+
     # Aggressive compiler tuning specifically for Zen 4
     makeFlags = (old.makeFlags or [ ]) ++ [
       "KCFLAGS=-march=znver4 -O3"
@@ -98,11 +101,11 @@ in
       patchShebangs tools
     '';
 
-    postInstall = '' 
-      echo "[*] Bundling headers for ZenOS dev output..." 
-      mkdir -p $out/lib/modules/${finalVersion}/build 
-      cp .config System.map vmlinux $out/lib/modules/${finalVersion}/build/ 
-      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/ 
-      ln -s $out/lib/modules/${finalVersion}/build $out/build 
+    postInstall = ''
+      echo "[*] Bundling headers for ZenOS dev output..."
+      mkdir -p $out/lib/modules/${finalVersion}/build
+      cp .config System.map vmlinux $out/lib/modules/${finalVersion}/build/
+      cp -r certs scripts include Makefile arch $out/lib/modules/${finalVersion}/build/
+      ln -s $out/lib/modules/${finalVersion}/build $out/build
     '';
   })
