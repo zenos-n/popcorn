@@ -1,4 +1,4 @@
-name: Popcorn Nightly
+name: Popcorn Nightly & Release
 
 on:
   push:
